@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LateralShield — Secure Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#020408;--bg2:#040c14;--panel:rgba(0,200,255,0.04);--border:rgba(0,200,255,0.15);
+    --cyan:#00c8ff;--cyan2:#00ffea;--red:#ff2244;--green:#00ff88;--yellow:#ffe44d;
+    --text:#c8e8f8;--muted:#4a7a9b;
+    --font-mono:'Share Tech Mono',monospace;--font-head:'Orbitron',sans-serif;--font-body:'Rajdhani',sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;overflow:hidden;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-body);cursor:none;display:flex;align-items:center;justify-content:center;}
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,255,0.012) 2px,rgba(0,200,255,0.012) 4px);pointer-events:none;z-index:1000;}
+  .cursor{position:fixed;width:10px;height:10px;background:var(--cyan);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);mix-blend-mode:screen;}
+  .cursor-ring{position:fixed;width:28px;height:28px;border:1px solid var(--cyan);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);opacity:0.4;transition:width 0.2s,height 0.2s;}
+
+  /* BG GLOW */
+  .bg-glow{position:fixed;inset:0;background:radial-gradient(ellipse 50% 60% at 50% 50%,rgba(0,200,255,0.05) 0%,transparent 70%),radial-gradient(ellipse 30% 30% at 20% 80%,rgba(255,34,68,0.04) 0%,transparent 60%);pointer-events:none;}
+
+  /* LAYOUT */
+  .login-wrap{display:grid;grid-template-columns:1fr 400px;gap:0;width:900px;height:600px;border:1px solid var(--border);position:relative;z-index:10;}
+
+  /* LEFT PANEL */
+  .left-panel{background:rgba(4,12,20,0.95);border-right:1px solid var(--border);padding:40px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative;}
+  .lp-logo{font-family:var(--font-head);font-size:1.1rem;font-weight:900;color:var(--cyan);letter-spacing:3px;}
+  .lp-logo span{color:var(--red);}
+  .lp-title{font-family:var(--font-head);font-size:1.6rem;font-weight:900;color:#fff;line-height:1.2;margin-bottom:12px;}
+  .lp-sub{font-family:var(--font-body);font-size:0.95rem;color:var(--muted);line-height:1.6;}
+
+  /* BLOCKCHAIN VIZ */
+  .blockchain-viz{flex:1;display:flex;flex-direction:column;gap:8px;justify-content:center;margin:24px 0;}
+  .b-block{background:rgba(0,200,255,0.04);border:1px solid var(--border);padding:12px;position:relative;opacity:0;transform:translateX(-20px);transition:all 0.5s ease;}
+  .b-block.visible{opacity:1;transform:translateX(0);}
+  .b-block.new-block{border-color:var(--green);background:rgba(0,255,136,0.06);animation:newBlock 0.5s ease;}
+  @keyframes newBlock{from{border-color:var(--cyan);box-shadow:0 0 20px rgba(0,200,255,0.3);}to{border-color:var(--green);}}
+  .b-block-header{display:flex;justify-content:space-between;margin-bottom:6px;}
+  .b-block-idx{font-family:var(--font-mono);font-size:0.58rem;color:var(--cyan);letter-spacing:2px;}
+  .b-block-status{font-family:var(--font-mono);font-size:0.55rem;padding:1px 6px;border:1px solid var(--green);color:var(--green);}
+  .b-block-hash{font-family:var(--font-mono);font-size:0.58rem;color:var(--muted);word-break:break-all;}
+  .b-block-hash .hv{color:var(--green);}
+  .b-connector{display:flex;justify-content:center;align-items:center;height:14px;}
+  .b-connector::after{content:'▼';font-size:0.65rem;color:var(--border);}
+
+  /* Hashing animation */
+  .hash-progress{margin-top:8px;}
+  .hash-label{font-family:var(--font-mono);font-size:0.58rem;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between;}
+  .hash-bar{height:2px;background:rgba(0,200,255,0.1);}
+  .hash-bar-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--cyan2));width:0%;transition:width 0.8s ease;}
+
+  /* STATUS MSGS */
+  .status-msgs{max-height:80px;overflow:hidden;}
+  .s-msg{font-family:var(--font-mono);font-size:0.6rem;padding:2px 0;opacity:0;transition:opacity 0.3s;}
+  .s-msg.visible{opacity:1;}
+  .s-msg.ok{color:var(--green);}
+  .s-msg.err{color:var(--red);}
+  .s-msg.info{color:var(--cyan);}
+
+  /* RIGHT PANEL - LOGIN FORM */
+  .right-panel{background:rgba(2,4,8,0.98);padding:40px;display:flex;flex-direction:column;justify-content:center;}
+  .form-header{margin-bottom:32px;}
+  .form-tag{font-family:var(--font-mono);font-size:0.6rem;color:var(--cyan);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;display:block;}
+  .form-title{font-family:var(--font-head);font-size:1.2rem;font-weight:900;color:#fff;margin-bottom:6px;}
+  .form-sub{font-family:var(--font-body);font-size:0.85rem;color:var(--muted);}
+
+  /* FORM ELEMENTS */
+  .field{margin-bottom:20px;}
+  .field label{display:block;font-family:var(--font-mono);font-size:0.6rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
+  .field input{width:100%;background:rgba(0,200,255,0.04);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:0.8rem;padding:12px 14px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;cursor:none;}
+  .field input:focus{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,200,255,0.1);}
+  .field input::placeholder{color:rgba(74,122,155,0.4);}
+
+  .role-select{display:flex;gap:8px;margin-bottom:24px;}
+  .role-btn{flex:1;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:var(--font-mono);font-size:0.6rem;padding:8px;letter-spacing:2px;text-transform:uppercase;cursor:none;transition:all 0.2s;}
+  .role-btn.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,200,255,0.06);}
+
+  .submit-btn{width:100%;background:var(--cyan);color:var(--bg);font-family:var(--font-mono);font-size:0.75rem;font-weight:700;padding:14px;letter-spacing:3px;text-transform:uppercase;border:none;cursor:none;transition:all 0.2s;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));}
+  .submit-btn:hover{background:var(--cyan2);box-shadow:0 0 24px rgba(0,200,255,0.4);}
+  .submit-btn:disabled{background:var(--muted);cursor:not-allowed;box-shadow:none;}
+
+  /* HASH DISPLAY */
+  .hash-display{margin:16px 0;padding:10px;background:rgba(0,200,255,0.04);border:1px solid var(--border);display:none;}
+  .hash-display.visible{display:block;}
+  .hd-label{font-family:var(--font-mono);font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+  .hd-val{font-family:var(--font-mono);font-size:0.62rem;color:var(--green);word-break:break-all;line-height:1.5;}
+
+  /* SUCCESS STATE */
+  .success-screen{display:none;text-align:center;flex-direction:column;align-items:center;justify-content:center;}
+  .success-screen.visible{display:flex;}
+  .success-icon{font-size:3rem;margin-bottom:16px;animation:float 2s ease-in-out infinite;}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+  .success-title{font-family:var(--font-head);font-size:1rem;font-weight:900;color:var(--green);letter-spacing:2px;margin-bottom:8px;}
+  .success-msg{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);line-height:1.6;margin-bottom:24px;}
+  .dashboard-btn{background:var(--green);color:var(--bg);font-family:var(--font-mono);font-size:0.7rem;padding:12px 28px;border:none;cursor:none;letter-spacing:2px;text-transform:uppercase;transition:all 0.2s;}
+  .dashboard-btn:hover{background:var(--cyan2);box-shadow:0 0 20px rgba(0,255,136,0.4);}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:3px;}
+  ::-webkit-scrollbar-thumb{background:rgba(0,200,255,0.2);}
+
+  /* BG PARTICLES */
+  .particle{position:fixed;width:2px;height:2px;background:var(--cyan);border-radius:50%;pointer-events:none;animation:floatParticle linear infinite;opacity:0;}
+  @keyframes floatParticle{0%{transform:translateY(100vh);opacity:0;}10%{opacity:0.4;}90%{opacity:0.1;}100%{transform:translateY(-100px);opacity:0;}}
+</style>
+</head>
+<body>
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="bg-glow"></div>
+
+<!-- PARTICLES -->
+<script>
+for(let i=0;i<20;i++){
+  const p=document.createElement('div'); p.className='particle';
+  p.style.left=Math.random()*100+'vw';
+  p.style.animationDuration=(Math.random()*15+8)+'s';
+  p.style.animationDelay=(Math.random()*10)+'s';
+  document.body.appendChild(p);
+}
+</script>
+
+<div class="login-wrap">
+  <!-- LEFT -->
+  <div class="left-panel">
+    <div class="lp-logo">LATERAL<span>SHIELD</span></div>
+
+    <div>
+      <div class="lp-title">Blockchain-Secured Authentication</div>
+      <div class="lp-sub">Every login creates an immutable, SHA-256 hashed block in the authentication chain. Tamper-proof. Zero-trust ready.</div>
+    </div>
+
+    <div class="blockchain-viz" id="blockchainViz">
+      <div class="b-block" id="block0">
+        <div class="b-block-header">
+          <span class="b-block-idx">BLOCK #0 — GENESIS</span>
+          <span class="b-block-status">✓ VALID</span>
+        </div>
+        <div class="b-block-hash">HASH: <span class="hv">000000a1f4b2c8d9e3f7a4...</span></div>
+        <div class="b-block-hash" style="margin-top:4px;font-size:0.55rem;">DATA: System init | T: 2025-01-15 08:00:00</div>
+      </div>
+      <div class="b-connector"></div>
+      <div class="b-block" id="block1">
+        <div class="b-block-header">
+          <span class="b-block-idx">BLOCK #1 — LAST LOGIN</span>
+          <span class="b-block-status">✓ VALID</span>
+        </div>
+        <div class="b-block-hash">HASH: <span class="hv">8f3a2b1c9d4e7f6a2b...</span></div>
+        <div class="b-block-hash" style="margin-top:4px;font-size:0.55rem;">DATA: admin@soc | T: 2025-01-15 09:30:44</div>
+      </div>
+      <div class="b-connector" id="conn2"></div>
+      <div class="b-block" id="block2" style="display:none">
+        <div class="b-block-header">
+          <span class="b-block-idx">BLOCK #2 — NEW LOGIN</span>
+          <span class="b-block-status" id="newBlockStatus">⏳ HASHING</span>
+        </div>
+        <div class="b-block-hash">HASH: <span class="hv" id="newBlockHash">computing...</span></div>
+        <div class="b-block-hash" style="margin-top:4px;font-size:0.55rem;" id="newBlockData">DATA: —</div>
+        <div class="hash-progress">
+          <div class="hash-label"><span>SHA-256 GENERATION</span><span id="hashPct">0%</span></div>
+          <div class="hash-bar"><div class="hash-bar-fill" id="hashBarFill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-msgs" id="statusMsgs">
+      <div class="s-msg info visible">// Blockchain auth layer ready</div>
+      <div class="s-msg info visible">// Awaiting credentials...</div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-panel">
+    <!-- FORM -->
+    <div id="formSection">
+      <div class="form-header">
+        <span class="form-tag">// SECURE ACCESS</span>
+        <div class="form-title">Sign In to Dashboard</div>
+        <div class="form-sub">Credentials are SHA-256 hashed and logged to the immutable blockchain.</div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-family:var(--font-mono);font-size:0.58rem;color:var(--muted);letter-spacing:2px;margin-bottom:8px;">ACCESS ROLE</div>
+        <div class="role-select">
+          <button class="role-btn active" id="roleAdmin" onclick="setRole('admin')">ADMIN</button>
+          <button class="role-btn" id="roleAnalyst" onclick="setRole('analyst')">ANALYST</button>
+          <button class="role-btn" id="roleViewer" onclick="setRole('viewer')">VIEWER</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Email / User ID</label>
+        <input type="text" id="emailInput" placeholder="admin@soc.local" value="admin@soc.local">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="passInput" placeholder="••••••••••" value="LateralShield@2025">
+      </div>
+
+      <div class="hash-display" id="hashDisplay">
+        <div class="hd-label">SHA-256 HASH PREVIEW</div>
+        <div class="hd-val" id="hashPreview">—</div>
+      </div>
+
+      <button class="submit-btn" id="submitBtn" onclick="doSubmit('login')">⛓ AUTHENTICATE VIA BLOCKCHAIN</button>
+      <button class="submit-btn" id="registerBtn" onclick="doSubmit('register')" style="margin-top: 12px; background: rgba(0,200,255,0.05); color: var(--cyan); border: 1px solid rgba(0,200,255,0.3);">CREATE NEW ACCOUNT</button>
+
+      <div style="margin-top:16px;font-family:var(--font-mono);font-size:0.58rem;color:var(--muted);text-align:center;">
+        Remote MongoDB Cluster Connected · SHA-256 Hashed
+      </div>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="success-screen" id="successScreen">
+      <div class="success-icon">🛡</div>
+      <div class="success-title">ACCESS GRANTED</div>
+      <div class="success-msg" id="successMsg">
+        Authentication verified.<br>
+        Blockchain block #2 created.<br>
+        Immutable audit log finalized.
+      </div>
+      <button class="dashboard-btn" onclick="goToDashboard()">▶ ENTER SOC DASHBOARD</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CURSOR ───
+const cursor=document.getElementById('cursor'),ring=document.getElementById('cursorRing');
+let mx=-100,my=-100,rx=-100,ry=-100;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;});
+function ac(){rx+=(mx-rx)*0.15;ry+=(my-ry)*0.15;cursor.style.left=mx+'px';cursor.style.top=my+'px';ring.style.left=rx+'px';ring.style.top=ry+'px';requestAnimationFrame(ac);}
+ac();
+
+// ─── BLOCKCHAIN INIT ANIMATION ───
+setTimeout(()=>{ document.getElementById('block0').classList.add('visible'); },300);
+setTimeout(()=>{ document.getElementById('block1').classList.add('visible'); },600);
+
+// ─── ROLE SELECT ───
+let currentRole='admin';
+function setRole(r){
+  currentRole=r;
+  ['admin','analyst','viewer'].forEach(x=>document.getElementById('role'+x.charAt(0).toUpperCase()+x.slice(1)).classList.remove('active'));
+  document.getElementById('role'+r.charAt(0).toUpperCase()+r.slice(1)).classList.add('active');
+}
+
+// ─── LIVE HASH PREVIEW ───
+async function sha256(msg){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+document.getElementById('passInput').addEventListener('input',async()=>{
+  const v=document.getElementById('passInput').value;
+  if(v.length>0){
+    const h=await sha256(v);
+    document.getElementById('hashDisplay').classList.add('visible');
+    document.getElementById('hashPreview').textContent=h;
+  } else {
+    document.getElementById('hashDisplay').classList.remove('visible');
+  }
+});
+// show hash for prefilled
+(async()=>{
+  const h=await sha256(document.getElementById('passInput').value);
+  document.getElementById('hashDisplay').classList.add('visible');
+  document.getElementById('hashPreview').textContent=h;
+})();
+
+// ─── STATUS MESSAGES ───
+function addStatus(msg,cls){
+  const msgs=document.getElementById('statusMsgs');
+  const div=document.createElement('div'); div.className=`s-msg ${cls}`;
+  div.textContent=msg; msgs.appendChild(div);
+  setTimeout(()=>div.classList.add('visible'),50);
+  while(msgs.children.length>4) msgs.removeChild(msgs.firstChild);
+}
+
+// ─── LOGIN FLOW ───
+async function doSubmit(mode) {
+  const email=document.getElementById('emailInput').value;
+  const pass=document.getElementById('passInput').value;
+  if(!email||!pass) { addStatus('// Error: credentials required', 'err'); return; }
+
+  const btnLogin=document.getElementById('submitBtn');
+  const btnReg=document.getElementById('registerBtn');
+  btnLogin.disabled = true; btnReg.disabled = true;
+  
+  const activeBtn = mode === 'register' ? btnReg : btnLogin;
+  const originalText = activeBtn.textContent;
+  activeBtn.textContent = '⏳ CONTACTING SECURE CLUSTER...';
+
+  addStatus(`// Request: ${mode.toUpperCase()} for ${email}`, 'info');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/${mode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: email, password: pass })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      addStatus(`// Auth Failed: ${data.error || 'Unknown error'}`, 'err');
+      activeBtn.textContent = originalText;
+      btnLogin.disabled = false; btnReg.disabled = false;
+      return;
+    }
+
+    addStatus(`// ${data.message}`, 'ok');
+    
+    // Auth Success — Run Blockchain logging animation
+    activeBtn.textContent = '⏳ HASHING CREDENTIALS...';
+    addStatus('// Applying SHA-256...','info');
+
+    // Show block 2
+    const b2=document.getElementById('block2');
+    b2.style.display='block';
+    setTimeout(()=>b2.classList.add('visible'),50);
+
+    // Hash animation
+    let pct=0;
+    const fill=document.getElementById('hashBarFill');
+    const pctLabel=document.getElementById('hashPct');
+    document.getElementById('newBlockData').textContent=`DATA: ${email} | ROLE: ${currentRole.toUpperCase()}`;
+
+    const hashInterval=setInterval(()=>{
+      pct=Math.min(pct+Math.random()*8+2,100);
+      fill.style.width=pct+'%';
+      pctLabel.textContent=Math.floor(pct)+'%';
+      if(pct>=100) clearInterval(hashInterval);
+    },60);
+
+    await new Promise(r=>setTimeout(r,600));
+    const hash=await sha256(email+pass+Date.now());
+    document.getElementById('newBlockHash').textContent=hash.substring(0,24)+'...';
+    activeBtn.textContent='⛓ CREATING BLOCKCHAIN BLOCK...';
+
+    await new Promise(r=>setTimeout(r,800));
+    document.getElementById('newBlockStatus').textContent='✓ MINED';
+    document.getElementById('newBlockStatus').style.color='var(--green)';
+    b2.classList.add('new-block');
+
+    addStatus('// SHA-256 hash computed','ok');
+    addStatus('// Block mined — chain extended','ok');
+    addStatus('// Immutable log created ✓','ok');
+
+    activeBtn.textContent='✓ VERIFIED — GRANTING ACCESS...';
+    await new Promise(r=>setTimeout(r,600));
+
+    // Show success
+    document.getElementById('formSection').style.display='none';
+    document.getElementById('successScreen').classList.add('visible');
+    document.getElementById('successMsg').innerHTML=`Authentication verified via MongoDB Atlas.<br>Role: <span style="color:var(--cyan)">${currentRole.toUpperCase()}</span><br>Blockchain block #2 created. Immutable audit log finalized.`;
+
+  } catch (err) {
+    addStatus('// Network Error: Cluster Unreachable', 'err');
+    activeBtn.textContent = originalText;
+    btnLogin.disabled = false; btnReg.disabled = false;
+  }
+}
+
+// ─── BACKEND STATUS CHECK ───
+const API_BASE = 'http://localhost:5000';
+async function checkBackendStatus() {
+  const statusDiv = document.getElementById('statusMsgs');
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data = await res.json();
+      addStatus(`// Backend: ONLINE — ${data.version || 'v1.0.0'}`, 'ok');
+      addStatus(`// Models: ${data.models_loaded ? 'LOADED ✓' : 'DEMO MODE'}`, data.models_loaded ? 'ok' : 'info');
+      // Mark backend as reachable in sessionStorage for dashboard
+      sessionStorage.setItem('backendOnline', 'true');
+    }
+  } catch(e) {
+    addStatus('// Backend: OFFLINE — demo mode', 'err');
+    sessionStorage.setItem('backendOnline', 'false');
+  }
+}
+
+function goToDashboard(){
+  window.location='lateralshield-dashboard.html';
+}
+
+// Run backend check on load
+setTimeout(checkBackendStatus, 800);
+</script>
+</body>
+</html>

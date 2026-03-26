@@ -1,0 +1,168 @@
+version: "3.9"
+
+services:
+  # ── MongoDB ────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7.0
+    container_name: lateralshield_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: lateralshield2026
+      MONGO_INITDB_DATABASE: lateralshield
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - lateralshield_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Flask Backend ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lateralshield_backend
+    restart: unless-stopped
+    environment:
+      MONGO_URI: mongodb://admin:lateralshield2026@mongodb:27017/lateralshield?authSource=admin
+      FLASK_DEBUG: "false"
+      PORT: "5000"
+      TRAPWEAVE_THRESHOLD: "0.85"
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - model_cache:/app/backend/models/saved
+    ports:
+      - "5000:5000"
+    networks:
+      - lateralshield_net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── React Frontend ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lateralshield_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+    ports:
+      - "3000:80"
+    networks:
+      - lateralshield_net
+    depends_on:
+      - backend
+
+  # ── TrapWeave Engine ───────────────────────────────────────
+  trapweave:
+    build:
+      context: ./trapweave
+      dockerfile: Dockerfile
+    container_name: lateralshield_trapweave
+    restart: unless-stopped
+    environment:
+      API_URL: http://backend:5000/api
+      TRAPWEAVE_THRESHOLD: "0.85"
+      HONEYPOT_NETWORK: lateralshield_honeypot_net
+      MAX_HONEYPOTS: "10"
+    volumes:
+      - ttp_logs:/tmp/trapweave_ttp
+    networks:
+      - lateralshield_net
+      - honeypot_net
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ── Honeypot: Fake Admin Server ────────────────────────────
+  honeypot_admin:
+    build:
+      context: ./trapweave/honeypot
+      dockerfile: Dockerfile
+    container_name: lateralshield_hp_admin
+    restart: unless-stopped
+    environment:
+      HP_TYPE: admin_server
+      HP_PORT: "8445"
+      HP_NAME: AdminServer_Fake01
+      HP_ID: hp_admin_01
+      API_URL: http://backend:5000/api
+      TTP_LOG: /tmp/ttp_admin.json
+    ports:
+      - "8445:8445"
+    networks:
+      - honeypot_net
+      - lateralshield_net
+    volumes:
+      - ttp_logs:/tmp
+
+  # ── Honeypot: Fake Database ────────────────────────────────
+  honeypot_db:
+    build:
+      context: ./trapweave/honeypot
+      dockerfile: Dockerfile
+    container_name: lateralshield_hp_db
+    restart: unless-stopped
+    environment:
+      HP_TYPE: database
+      HP_PORT: "8433"
+      HP_NAME: DB-Server_Fake02
+      HP_ID: hp_db_02
+      API_URL: http://backend:5000/api
+      TTP_LOG: /tmp/ttp_db.json
+    ports:
+      - "8433:8433"
+    networks:
+      - honeypot_net
+      - lateralshield_net
+    volumes:
+      - ttp_logs:/tmp
+
+  # ── Model Training (one-shot) ──────────────────────────────
+  trainer:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lateralshield_trainer
+    restart: "no"
+    command: python -m backend.models.train
+    environment:
+      MONGO_URI: mongodb://admin:lateralshield2026@mongodb:27017/lateralshield?authSource=admin
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - model_cache:/app/backend/models/saved
+    networks:
+      - lateralshield_net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    profiles:
+      - training
+
+networks:
+  lateralshield_net:
+    driver: bridge
+  honeypot_net:
+    driver: bridge
+    name: lateralshield_honeypot_net
+
+volumes:
+  mongo_data:
+  model_cache:
+  ttp_logs:

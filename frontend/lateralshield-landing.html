@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LateralShield — AI-Powered Lateral Threat Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #020408;
+    --bg2: #040c14;
+    --panel: rgba(0,200,255,0.04);
+    --border: rgba(0,200,255,0.15);
+    --cyan: #00c8ff;
+    --cyan2: #00ffea;
+    --red: #ff2244;
+    --orange: #ff7700;
+    --green: #00ff88;
+    --yellow: #ffe44d;
+    --text: #c8e8f8;
+    --muted: #4a7a9b;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-head: 'Orbitron', sans-serif;
+    --font-body: 'Rajdhani', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  .cursor {
+    position: fixed; width: 12px; height: 12px;
+    background: var(--cyan); border-radius: 50%;
+    pointer-events: none; z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, background 0.2s;
+    mix-blend-mode: screen;
+  }
+  .cursor-ring {
+    position: fixed; width: 32px; height: 32px;
+    border: 1px solid var(--cyan); border-radius: 50%;
+    pointer-events: none; z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: transform 0.15s ease, width 0.2s, height 0.2s, opacity 0.2s;
+    opacity: 0.5;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,200,255,0.015) 2px,
+      rgba(0,200,255,0.015) 4px
+    );
+    pointer-events: none; z-index: 1000;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 48px;
+    background: rgba(2,4,8,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    z-index: 500;
+  }
+  .nav-logo {
+    font-family: var(--font-head); font-size: 1.1rem; font-weight: 900;
+    color: var(--cyan); letter-spacing: 3px;
+    text-shadow: 0 0 20px rgba(0,200,255,0.5);
+  }
+  .nav-logo span { color: var(--red); }
+  .nav-links { display: flex; gap: 32px; list-style: none; }
+  .nav-links a {
+    color: var(--muted); font-family: var(--font-mono); font-size: 0.75rem;
+    text-decoration: none; letter-spacing: 2px; text-transform: uppercase;
+    transition: color 0.2s, text-shadow 0.2s;
+  }
+  .nav-links a:hover { color: var(--cyan); text-shadow: 0 0 10px rgba(0,200,255,0.5); }
+  .nav-cta {
+    background: transparent; border: 1px solid var(--cyan);
+    color: var(--cyan); font-family: var(--font-mono); font-size: 0.7rem;
+    padding: 8px 20px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: none; transition: all 0.2s;
+  }
+  .nav-cta:hover { background: var(--cyan); color: var(--bg); box-shadow: 0 0 20px rgba(0,200,255,0.4); }
+
+  /* HERO */
+  #hero {
+    position: relative; min-height: 100vh;
+    display: grid; grid-template-columns: 1fr 1fr;
+    align-items: center; gap: 0;
+    padding: 120px 48px 80px;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 70% 50%, rgba(0,200,255,0.05) 0%, transparent 70%),
+                radial-gradient(ellipse 40% 40% at 20% 80%, rgba(255,34,68,0.04) 0%, transparent 60%);
+  }
+
+  .hero-content { position: relative; z-index: 2; }
+
+  .hero-eyebrow {
+    font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--red); letter-spacing: 4px; text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .hero-eyebrow::before {
+    content: ''; display: block; width: 32px; height: 1px; background: var(--red);
+  }
+
+  h1 {
+    font-family: var(--font-head); font-size: clamp(2.2rem, 4vw, 3.8rem);
+    font-weight: 900; line-height: 1.05; letter-spacing: -1px;
+    margin-bottom: 12px;
+  }
+  h1 .line1 { color: #fff; display: block; }
+  h1 .line2 {
+    color: transparent;
+    -webkit-text-stroke: 1px var(--cyan);
+    display: block;
+    text-shadow: none;
+  }
+  h1 .line3 { color: var(--cyan); display: block; text-shadow: 0 0 40px rgba(0,200,255,0.4); }
+
+  .hero-sub {
+    font-family: var(--font-body); font-size: 1.1rem; font-weight: 300;
+    color: var(--muted); line-height: 1.7; max-width: 480px;
+    margin: 24px 0 40px;
+  }
+  .hero-sub strong { color: var(--text); font-weight: 600; }
+
+  .hero-btns { display: flex; gap: 16px; flex-wrap: wrap; }
+
+  .btn-primary {
+    background: var(--cyan); color: var(--bg);
+    font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700;
+    padding: 14px 32px; letter-spacing: 2px; text-transform: uppercase;
+    border: none; cursor: none;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    transition: all 0.2s; text-decoration: none; display: inline-block;
+  }
+  .btn-primary:hover { background: var(--cyan2); box-shadow: 0 0 30px rgba(0,200,255,0.5); }
+
+  .btn-secondary {
+    background: transparent; color: var(--cyan);
+    font-family: var(--font-mono); font-size: 0.8rem;
+    padding: 14px 32px; letter-spacing: 2px; text-transform: uppercase;
+    border: 1px solid rgba(0,200,255,0.3); cursor: none;
+    transition: all 0.2s; text-decoration: none; display: inline-block;
+  }
+  .btn-secondary:hover { border-color: var(--cyan); background: rgba(0,200,255,0.05); }
+
+  .hero-stats {
+    display: flex; gap: 40px; margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+  .stat-item { }
+  .stat-val {
+    font-family: var(--font-head); font-size: 1.8rem; font-weight: 900;
+    color: var(--cyan); display: block;
+  }
+  .stat-label {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
+    margin-top: 4px; display: block;
+  }
+
+  /* NETWORK CANVAS */
+  .hero-canvas-wrap {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #networkCanvas {
+    width: 100%; max-width: 560px;
+    filter: drop-shadow(0 0 30px rgba(0,200,255,0.15));
+  }
+
+  .canvas-label {
+    position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%);
+    font-family: var(--font-mono); font-size: 0.65rem;
+    color: var(--muted); letter-spacing: 3px; text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Attack status overlay */
+  .attack-status {
+    position: absolute; top: 20px; right: 20px;
+    background: rgba(2,4,8,0.9); border: 1px solid var(--border);
+    padding: 12px 16px; font-family: var(--font-mono); font-size: 0.65rem;
+    color: var(--text); letter-spacing: 1px; min-width: 200px;
+  }
+  .attack-status .status-row {
+    display: flex; justify-content: space-between; gap: 16px;
+    padding: 3px 0; border-bottom: 1px solid rgba(0,200,255,0.06);
+  }
+  .attack-status .status-row:last-child { border-bottom: none; }
+  .status-key { color: var(--muted); }
+  .status-val { color: var(--cyan); }
+  .status-val.red { color: var(--red); }
+  .status-val.green { color: var(--green); }
+  .status-val.yellow { color: var(--yellow); }
+
+  /* SECTION COMMON */
+  section { padding: 100px 48px; position: relative; }
+
+  .section-tag {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    color: var(--cyan); letter-spacing: 4px; text-transform: uppercase;
+    margin-bottom: 16px; display: block;
+  }
+  .section-title {
+    font-family: var(--font-head); font-size: clamp(1.6rem, 3vw, 2.6rem);
+    font-weight: 900; color: #fff; line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .section-sub {
+    font-family: var(--font-body); font-size: 1.05rem;
+    color: var(--muted); max-width: 560px; line-height: 1.7;
+  }
+
+  /* PROBLEM vs SOLUTION */
+  #problem {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .ps-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0; margin-top: 60px;
+    border: 1px solid var(--border);
+  }
+  .ps-col {
+    padding: 48px;
+    transition: background 0.3s;
+  }
+  .ps-col:first-child {
+    border-right: 1px solid var(--border);
+    background: rgba(255,34,68,0.03);
+  }
+  .ps-col:hover { background: rgba(0,200,255,0.04); }
+  .ps-col-label {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    letter-spacing: 4px; text-transform: uppercase;
+    margin-bottom: 24px; display: flex; align-items: center; gap: 10px;
+  }
+  .ps-col-label.bad { color: var(--red); }
+  .ps-col-label.good { color: var(--green); }
+  .ps-col-label::after {
+    content: ''; flex: 1; height: 1px;
+  }
+  .ps-col-label.bad::after { background: rgba(255,34,68,0.3); }
+  .ps-col-label.good::after { background: rgba(0,255,136,0.3); }
+  .ps-col h3 {
+    font-family: var(--font-head); font-size: 1.3rem; font-weight: 700;
+    margin-bottom: 20px; line-height: 1.2;
+  }
+  .ps-col:first-child h3 { color: var(--red); }
+  .ps-col:last-child h3 { color: var(--green); }
+  .ps-list { list-style: none; }
+  .ps-list li {
+    padding: 10px 0; border-bottom: 1px solid rgba(0,200,255,0.06);
+    font-family: var(--font-body); font-size: 1rem; color: var(--muted);
+    display: flex; align-items: flex-start; gap: 12px;
+    transition: color 0.2s;
+  }
+  .ps-list li:hover { color: var(--text); }
+  .ps-list li::before {
+    content: '×'; color: var(--red); font-weight: 700;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .ps-col:last-child .ps-list li::before { content: '✓'; color: var(--green); }
+
+  /* FEATURES */
+  #features { }
+  .features-header { max-width: 600px; margin-bottom: 60px; }
+  .features-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .feature-card {
+    background: var(--bg);
+    padding: 40px 36px;
+    position: relative; overflow: hidden;
+    transition: background 0.3s;
+    cursor: none;
+  }
+  .feature-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    transform: scaleX(0); transition: transform 0.4s;
+  }
+  .feature-card:hover { background: rgba(0,200,255,0.04); }
+  .feature-card:hover::before { transform: scaleX(1); }
+  .feature-icon {
+    font-size: 2rem; margin-bottom: 20px;
+    filter: drop-shadow(0 0 8px rgba(0,200,255,0.4));
+    display: block;
+  }
+  .feature-number {
+    position: absolute; top: 20px; right: 20px;
+    font-family: var(--font-mono); font-size: 0.65rem;
+    color: rgba(0,200,255,0.2); letter-spacing: 2px;
+  }
+  .feature-card h4 {
+    font-family: var(--font-head); font-size: 0.9rem; font-weight: 700;
+    color: #fff; letter-spacing: 1px; margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .feature-card p {
+    font-family: var(--font-body); font-size: 0.95rem;
+    color: var(--muted); line-height: 1.6;
+  }
+  .feature-tag {
+    display: inline-block; margin-top: 16px;
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--cyan); letter-spacing: 2px; text-transform: uppercase;
+    border: 1px solid rgba(0,200,255,0.2); padding: 3px 8px;
+  }
+
+  /* ACTIVITY TIMELINE */
+  #timeline {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .timeline-header { margin-bottom: 60px; }
+  .timeline-grid { display: grid; grid-template-columns: 1fr 80px 1fr; gap: 0; align-items: stretch; }
+  .tl-col { display: flex; flex-direction: column; gap: 0; }
+  .tl-col-header {
+    font-family: var(--font-mono); font-size: 0.7rem;
+    letter-spacing: 3px; text-transform: uppercase; padding: 16px 24px;
+    border: 1px solid var(--border); margin-bottom: 2px;
+  }
+  .tl-col-header.before { color: var(--red); background: rgba(255,34,68,0.05); }
+  .tl-col-header.after { color: var(--green); background: rgba(0,255,136,0.05); }
+  .tl-center { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 0; gap: 0; }
+  .tl-item {
+    padding: 20px 24px; border: 1px solid var(--border);
+    margin-bottom: 2px; transition: all 0.3s; cursor: none;
+    position: relative;
+  }
+  .tl-item.before { border-left: 3px solid var(--red); }
+  .tl-item.after { border-left: 3px solid var(--green); }
+  .tl-item:hover { background: rgba(0,200,255,0.04); }
+  .tl-time {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--muted); letter-spacing: 2px; margin-bottom: 6px; display: block;
+  }
+  .tl-item h5 {
+    font-family: var(--font-body); font-size: 0.95rem; font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .tl-item.before h5 { color: var(--red); }
+  .tl-item.after h5 { color: var(--green); }
+  .tl-item p { font-family: var(--font-body); font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .tl-node {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--bg);
+    flex-shrink: 0; margin: 28px 0;
+    position: relative; z-index: 1;
+  }
+  .tl-line { width: 1px; flex: 1; background: var(--border); }
+
+  /* DEMO TOGGLE */
+  #demo {
+    text-align: center;
+    background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,200,255,0.05) 0%, transparent 70%);
+  }
+  .demo-title { font-family: var(--font-head); font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 900; color: #fff; margin-bottom: 16px; }
+  .demo-sub { font-family: var(--font-body); font-size: 1.1rem; color: var(--muted); margin-bottom: 48px; }
+
+  .demo-terminal {
+    background: rgba(2,4,8,0.95); border: 1px solid var(--border);
+    max-width: 760px; margin: 0 auto 48px;
+    text-align: left; overflow: hidden;
+  }
+  .terminal-bar {
+    background: rgba(0,200,255,0.08); border-bottom: 1px solid var(--border);
+    padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .t-dot.red { background: var(--red); }
+  .t-dot.yellow { background: var(--yellow); }
+  .t-dot.green { background: var(--green); }
+  .terminal-title { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); margin-left: 8px; letter-spacing: 2px; }
+  .terminal-body { padding: 24px; min-height: 200px; }
+  .t-line {
+    font-family: var(--font-mono); font-size: 0.78rem;
+    line-height: 1.8; display: block; opacity: 0;
+    animation: fadeInLine 0.3s forwards;
+  }
+  .t-line.prompt::before { content: '$ '; color: var(--green); }
+  .t-line.info { color: var(--cyan); }
+  .t-line.warn { color: var(--yellow); }
+  .t-line.danger { color: var(--red); }
+  .t-line.success { color: var(--green); }
+  .t-line.muted { color: var(--muted); }
+  @keyframes fadeInLine { to { opacity: 1; } }
+
+  .demo-controls { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .demo-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text); font-family: var(--font-mono); font-size: 0.7rem;
+    padding: 12px 24px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: none; transition: all 0.2s;
+  }
+  .demo-btn:hover, .demo-btn.active {
+    border-color: var(--cyan); color: var(--cyan);
+    background: rgba(0,200,255,0.05);
+    box-shadow: 0 0 16px rgba(0,200,255,0.15);
+  }
+  .demo-btn.danger-btn { border-color: rgba(255,34,68,0.3); color: var(--red); }
+  .demo-btn.danger-btn:hover { background: rgba(255,34,68,0.05); box-shadow: 0 0 16px rgba(255,34,68,0.2); }
+
+  /* ML MODELS STRIP */
+  #models {
+    border-top: 1px solid var(--border);
+  }
+  .models-header { margin-bottom: 60px; }
+  .models-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .model-card {
+    border: 1px solid var(--border); padding: 40px 32px;
+    position: relative; overflow: hidden;
+    background: var(--panel); transition: all 0.3s;
+  }
+  .model-card:hover { border-color: var(--cyan); transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(0,200,255,0.1); }
+  .model-card::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--cyan), transparent);
+  }
+  .model-name {
+    font-family: var(--font-head); font-size: 0.85rem; font-weight: 900;
+    color: var(--cyan); letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .model-full-name {
+    font-family: var(--font-body); font-size: 1rem; color: var(--text);
+    font-weight: 600; margin-bottom: 16px;
+  }
+  .model-desc { font-family: var(--font-body); font-size: 0.9rem; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+  .model-bar-label {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 6px; display: flex; justify-content: space-between;
+  }
+  .model-bar { height: 4px; background: rgba(0,200,255,0.1); margin-bottom: 12px; }
+  .model-bar-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--cyan2)); transition: width 1.5s ease; }
+  .model-score {
+    font-family: var(--font-head); font-size: 1.8rem; font-weight: 900;
+    color: var(--green); margin-top: 20px;
+  }
+  .model-score span { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); font-weight: 400; }
+
+  /* THREAT INTEL */
+  #threat-intel {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .intel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; }
+  .intel-panel { border: 1px solid var(--border); padding: 32px; }
+  .intel-panel-title {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    color: var(--cyan); letter-spacing: 3px; text-transform: uppercase;
+    margin-bottom: 24px; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ip-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid rgba(0,200,255,0.05);
+    font-family: var(--font-mono); font-size: 0.75rem;
+    transition: background 0.2s; padding-left: 8px; padding-right: 8px;
+    cursor: none;
+  }
+  .ip-row:hover { background: rgba(0,200,255,0.03); }
+  .ip-addr { color: var(--text); }
+  .ip-country { color: var(--muted); }
+  .ip-badge {
+    font-size: 0.58rem; padding: 2px 8px; letter-spacing: 1px;
+    text-transform: uppercase; border: 1px solid;
+  }
+  .ip-badge.critical { color: var(--red); border-color: var(--red); background: rgba(255,34,68,0.1); }
+  .ip-badge.high { color: var(--orange); border-color: var(--orange); background: rgba(255,119,0,0.1); }
+  .ip-badge.medium { color: var(--yellow); border-color: var(--yellow); background: rgba(255,228,77,0.1); }
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; padding: 20px 0; }
+  .gauge-svg { width: 200px; height: 120px; }
+  .gauge-score {
+    font-family: var(--font-head); font-size: 2.5rem; font-weight: 900;
+    color: var(--yellow); margin-top: -10px;
+  }
+  .gauge-label { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin-top: 8px; }
+  .gauge-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; width: 100%; }
+  .gauge-detail-item { padding: 12px; border: 1px solid var(--border); text-align: center; }
+  .gauge-detail-val { font-family: var(--font-head); font-size: 1.2rem; font-weight: 900; color: var(--cyan); display: block; }
+  .gauge-detail-key { font-family: var(--font-mono); font-size: 0.58rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+
+  /* CTA */
+  #cta {
+    text-align: center; padding: 120px 48px;
+    background: radial-gradient(ellipse 60% 80% at 50% 50%, rgba(0,200,255,0.06) 0%, transparent 70%);
+    border-top: 1px solid var(--border);
+  }
+  .cta-pre { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 24px; display: block; }
+  .cta-title { font-family: var(--font-head); font-size: clamp(2rem, 4vw, 3.5rem); font-weight: 900; color: #fff; line-height: 1.05; margin-bottom: 24px; }
+  .cta-title .accent { color: var(--cyan); text-shadow: 0 0 40px rgba(0,200,255,0.4); }
+  .cta-sub { font-family: var(--font-body); font-size: 1.1rem; color: var(--muted); max-width: 480px; margin: 0 auto 48px; line-height: 1.7; }
+  .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 48px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg2);
+  }
+  .footer-logo { font-family: var(--font-head); font-size: 0.9rem; font-weight: 900; color: var(--muted); letter-spacing: 3px; }
+  .footer-logo span { color: var(--red); }
+  .footer-copy { font-family: var(--font-mono); font-size: 0.6rem; color: rgba(74,122,155,0.5); letter-spacing: 2px; }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { font-family: var(--font-mono); font-size: 0.6rem; color: var(--muted); text-decoration: none; letter-spacing: 2px; text-transform: uppercase; transition: color 0.2s; }
+  .footer-links a:hover { color: var(--cyan); }
+
+  /* Animations */
+  @keyframes pulse-red { 0%,100% { opacity: 0.8; } 50% { opacity: 0.2; } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @keyframes glow-pulse { 0%,100% { text-shadow: 0 0 20px rgba(0,200,255,0.3); } 50% { text-shadow: 0 0 60px rgba(0,200,255,0.8), 0 0 100px rgba(0,200,255,0.3); } }
+
+  .animate-on-scroll { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .animate-on-scroll.visible { opacity: 1; transform: translateY(0); }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    #hero { grid-template-columns: 1fr; padding: 100px 24px 60px; }
+    .hero-canvas-wrap { display: none; }
+    .ps-grid, .features-grid, .models-grid, .intel-grid { grid-template-columns: 1fr; }
+    .timeline-grid { grid-template-columns: 1fr; }
+    .tl-center { display: none; }
+    nav { padding: 12px 24px; }
+    .nav-links { display: none; }
+    section { padding: 60px 24px; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+  }
+
+  /* Glitch effect on hover for title */
+  .glitch { position: relative; }
+  .glitch:hover::before, .glitch:hover::after {
+    content: attr(data-text);
+    position: absolute; left: 0; top: 0; width: 100%;
+    font-family: inherit; font-size: inherit; font-weight: inherit;
+  }
+  .glitch:hover::before {
+    color: var(--red); clip-path: polygon(0 0, 100% 0, 100% 30%, 0 30%);
+    transform: translateX(-2px); animation: glitch1 0.2s infinite;
+  }
+  .glitch:hover::after {
+    color: var(--cyan2); clip-path: polygon(0 70%, 100% 70%, 100% 100%, 0 100%);
+    transform: translateX(2px); animation: glitch2 0.2s infinite;
+  }
+  @keyframes glitch1 { 0%,100% { transform: translateX(-2px); } 50% { transform: translateX(2px); } }
+  @keyframes glitch2 { 0%,100% { transform: translateX(2px); } 50% { transform: translateX(-2px); } }
+
+  /* Blinking cursor in terminal */
+  .blink { animation: blink 1s step-end infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: rgba(0,200,255,0.3); }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">LATERAL<span>SHIELD</span></div>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#models">ML Engine</a></li>
+    <li><a href="#demo">Demo</a></li>
+    <li><a href="#threat-intel">Intel</a></li>
+  </ul>
+  <button class="nav-cta" onclick="window.location='lateralshield-login.html'">Launch Dashboard</button>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">AI-POWERED SOC PLATFORM</div>
+    <h1>
+      <span class="line1">INTELLIGENT</span>
+      <span class="line2 glitch" data-text="LATERAL THREAT">LATERAL THREAT</span>
+      <span class="line3" style="animation: glow-pulse 3s ease-in-out infinite;">TRAP SYSTEM</span>
+    </h1>
+    <p class="hero-sub">
+      Detect, explain, predict, and actively <strong>trap lateral movement attacks</strong> in real time using unsupervised AI, SHAP explainability, and automated TrapWeave deception.
+    </p>
+    <div class="hero-btns">
+      <a href="lateralshield-login.html" class="btn-primary">▶ Launch Secure Dashboard</a>
+      <a href="#features" class="btn-secondary">Explore Features</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <span class="stat-val" id="stat1">97.4%</span>
+        <span class="stat-label">Detection Rate</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="stat2">&lt;12ms</span>
+        <span class="stat-label">Response Time</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="stat3">3x</span>
+        <span class="stat-label">ML Model Ensemble</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-val" id="stat4">0-Day</span>
+        <span class="stat-label">Zero-Day Ready</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-canvas-wrap">
+    <canvas id="networkCanvas" width="560" height="460"></canvas>
+    <div class="attack-status" id="attackStatus">
+      <div class="status-row"><span class="status-key">THREAT LEVEL</span><span class="status-val red" id="s-threat">CRITICAL</span></div>
+      <div class="status-row"><span class="status-key">ANOMALY SCORE</span><span class="status-val yellow" id="s-score">0.84</span></div>
+      <div class="status-row"><span class="status-key">ML CONSENSUS</span><span class="status-val" id="s-ml">3/3 ALERT</span></div>
+      <div class="status-row"><span class="status-key">TRAPWEAVE</span><span class="status-val green" id="s-trap">ACTIVE</span></div>
+      <div class="status-row"><span class="status-key">ATTACKER</span><span class="status-val red" id="s-attacker">192.168.4.23</span></div>
+      <div class="status-row"><span class="status-key">PHASE</span><span class="status-val" id="s-phase">LATERAL MOVE</span></div>
+    </div>
+    <div class="canvas-label">LIVE NETWORK TOPOLOGY — TRAPWEAVE ACTIVE</div>
+  </div>
+</section>
+
+<!-- PROBLEM vs SOLUTION -->
+<section id="problem" class="animate-on-scroll">
+  <span class="section-tag">// THE CHALLENGE</span>
+  <h2 class="section-title">Why Traditional Security Fails</h2>
+  <p class="section-sub">Lateral movement is the deadliest phase of any cyberattack — and the hardest to detect with conventional tools.</p>
+
+  <div class="ps-grid">
+    <div class="ps-col">
+      <div class="ps-col-label bad">⚠ WITHOUT LATERALSHIELD</div>
+      <h3>Blind to Lateral Threats</h3>
+      <ul class="ps-list">
+        <li>Attackers move freely between internal hosts undetected</li>
+        <li>Signature-based tools miss zero-day patterns</li>
+        <li>No explainability — analysts don't know what triggered alerts</li>
+        <li>Hours to days of dwell time before detection</li>
+        <li>No deception layer — attacker reaches real targets</li>
+        <li>False positive fatigue overwhelms SOC teams</li>
+        <li>Post-breach forensics are slow and incomplete</li>
+      </ul>
+    </div>
+    <div class="ps-col">
+      <div class="ps-col-label good">✓ WITH LATERALSHIELD</div>
+      <h3>AI-Powered Deception & Detection</h3>
+      <ul class="ps-list">
+        <li>Ensemble ML detects anomalies in milliseconds</li>
+        <li>SHAP explainability shows <em>exactly</em> why it flagged</li>
+        <li>Zero-day detection via behavioral modeling</li>
+        <li>TrapWeave honeypots intercept attackers automatically</li>
+        <li>Real-time attack path prediction</li>
+        <li>Blockchain-secured immutable audit trail</li>
+        <li>Auto response suggestions reduce analyst burden</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="features-header animate-on-scroll">
+    <span class="section-tag">// CAPABILITIES</span>
+    <h2 class="section-title">Platform Features</h2>
+    <p class="section-sub">Every component engineered for real-world SOC environments, from detection to automated deception.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card animate-on-scroll">
+      <span class="feature-number">01</span>
+      <span class="feature-icon">🧠</span>
+      <h4>Ensemble ML Engine</h4>
+      <p>Isolation Forest, LOF, and One-Class SVM work in consensus to deliver fused anomaly scores with 97.4% accuracy.</p>
+      <span class="feature-tag">UNSUPERVISED AI</span>
+    </div>
+    <div class="feature-card animate-on-scroll">
+      <span class="feature-number">02</span>
+      <span class="feature-icon">🔍</span>
+      <h4>SHAP Explainability</h4>
+      <p>Every detection includes feature-level SHAP values so analysts understand exactly what drove the anomaly score.</p>
+      <span class="feature-tag">XAI</span>
+    </div>
+    <div class="feature-card animate-on-scroll">
+      <span class="feature-number">03</span>
+      <span class="feature-icon">🕸</span>
+      <h4>TrapWeave Honeypots</h4>
+      <p>Dynamic deception layer that auto-deploys honeypots and reroutes attackers away from real assets in real time.</p>
+      <span class="feature-tag">ACTIVE DEFENSE</span>
+    </div>
+    <div class="feature-card animate-on-scroll">
+      <span class="feature-number">04</span>
+      <span class="feature-icon">⛓</span>
+      <h4>Blockchain Auth</h4>
+      <p>SHA-256 hashed credentials stored in an immutable on-memory blockchain. Every login creates a tamper-proof block.</p>
+      <span class="feature-tag">ZERO TRUST</span>
+    </div>
+    <div class="feature-card animate-on-scroll">
+      <span class="feature-number">05</span>
+      <span class="feature-icon">🔮</span>
+      <h4>Attack Path Prediction</h4>
+      <p>Graph-based model predicts the attacker's next target node before movement occurs, enabling pre-emptive trapping.</p>
+      <span class="feature-tag">PREDICTIVE AI</span>
+    </div>
+    <div class="feature-card animate-on-scroll">
+      <span class="feature-number">06</span>
+      <span class="feature-icon">⚡</span>
+      <h4>Attack Replay Mode</h4>
+      <p>Reconstruct any historical attack step-by-step: entry, lateral movement, detection, and trap engagement timeline.</p>
+      <span class="feature-tag">FORENSICS</span>
+    </div>
+  </div>
+</section>
+
+<!-- ACTIVITY TIMELINE -->
+<section id="timeline">
+  <div class="timeline-header animate-on-scroll">
+    <span class="section-tag">// ATTACK LIFECYCLE</span>
+    <h2 class="section-title">Before vs After Detection</h2>
+    <p class="section-sub">See how LateralShield transforms the attack timeline from uncontrolled compromise to immediate containment.</p>
+  </div>
+
+  <div class="timeline-grid">
+    <div class="tl-col">
+      <div class="tl-col-header before">⚠ WITHOUT LATERALSHIELD</div>
+      <div class="tl-item before animate-on-scroll">
+        <span class="tl-time">T+00:00</span>
+        <h5>Initial Compromise</h5>
+        <p>Attacker gains foothold via phishing. No detection. Normal traffic baseline missed.</p>
+      </div>
+      <div class="tl-item before animate-on-scroll">
+        <span class="tl-time">T+00:47</span>
+        <h5>Credential Harvesting</h5>
+        <p>Internal credentials dumped. Tools like Mimikatz run undetected on infected host.</p>
+      </div>
+      <div class="tl-item before animate-on-scroll">
+        <span class="tl-time">T+02:15</span>
+        <h5>Lateral Movement Begins</h5>
+        <p>Attacker pivots across 4 internal hosts using stolen credentials. No alerts triggered.</p>
+      </div>
+      <div class="tl-item before animate-on-scroll">
+        <span class="tl-time">T+06:30</span>
+        <h5>Data Exfiltration</h5>
+        <p>Critical databases accessed. 14GB of PII exfiltrated over 4 hours. Still no alert.</p>
+      </div>
+      <div class="tl-item before animate-on-scroll">
+        <span class="tl-time">T+18:00</span>
+        <h5>Detection (Too Late)</h5>
+        <p>Manual log review flags anomaly. Damage already complete. 18-hour dwell time.</p>
+      </div>
+    </div>
+
+    <div class="tl-center">
+      <div class="tl-line"></div>
+      <div class="tl-node" style="border-color: var(--red);"></div>
+      <div class="tl-line"></div>
+      <div class="tl-node" style="border-color: var(--orange);"></div>
+      <div class="tl-line"></div>
+      <div class="tl-node" style="border-color: var(--yellow);"></div>
+      <div class="tl-line"></div>
+      <div class="tl-node" style="border-color: var(--cyan);"></div>
+      <div class="tl-line"></div>
+      <div class="tl-node" style="border-color: var(--green);"></div>
+      <div class="tl-line"></div>
+    </div>
+
+    <div class="tl-col">
+      <div class="tl-col-header after">✓ WITH LATERALSHIELD</div>
+      <div class="tl-item after animate-on-scroll">
+        <span class="tl-time">T+00:00</span>
+        <h5>Initial Compromise Detected</h5>
+        <p>Behavioral deviation from baseline flagged. Anomaly score: 0.71. Alert generated.</p>
+      </div>
+      <div class="tl-item after animate-on-scroll">
+        <span class="tl-time">T+00:09</span>
+        <h5>ML Ensemble Confirms</h5>
+        <p>All 3 models agree (IF + LOF + OCSVM). SHAP analysis identifies suspicious auth pattern.</p>
+      </div>
+      <div class="tl-item after animate-on-scroll">
+        <span class="tl-time">T+00:11</span>
+        <h5>TrapWeave Deployed</h5>
+        <p>Honeypots instantiated on predicted next-hop nodes. Attacker redirected to decoy systems.</p>
+      </div>
+      <div class="tl-item after animate-on-scroll">
+        <span class="tl-time">T+00:18</span>
+        <h5>Attacker Trapped</h5>
+        <p>Full session captured in honeypot. Real assets remain untouched. TTPs documented.</p>
+      </div>
+      <div class="tl-item after animate-on-scroll">
+        <span class="tl-time">T+00:23</span>
+        <h5>Auto Response Executed</h5>
+        <p>Infected host isolated. Port blocked. Blockchain audit log finalized. Incident report generated.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ML MODELS -->
+<section id="models">
+  <div class="models-header animate-on-scroll">
+    <span class="section-tag">// ML ARCHITECTURE</span>
+    <h2 class="section-title">Triple-Layer Detection Engine</h2>
+    <p class="section-sub">Three unsupervised models run in parallel, fusing scores for a final consensus-based threat decision.</p>
+  </div>
+  <div class="models-grid">
+    <div class="model-card animate-on-scroll">
+      <div class="model-name">IF</div>
+      <div class="model-full-name">Isolation Forest</div>
+      <p class="model-desc">Rapidly isolates anomalies by building random partitions. Anomalies require fewer splits — ideal for high-speed stream detection.</p>
+      <div class="model-bar-label"><span>Detection Speed</span><span>98%</span></div>
+      <div class="model-bar"><div class="model-bar-fill" style="width:0%" data-width="98%"></div></div>
+      <div class="model-bar-label"><span>Low False Positive</span><span>94%</span></div>
+      <div class="model-bar"><div class="model-bar-fill" style="width:0%" data-width="94%"></div></div>
+      <div class="model-score">0.91 <span>confidence</span></div>
+    </div>
+    <div class="model-card animate-on-scroll">
+      <div class="model-name">LOF</div>
+      <div class="model-full-name">Local Outlier Factor</div>
+      <p class="model-desc">Compares local density of data points. Detects subtle behavioral deviations invisible to global models — perfect for insider threats.</p>
+      <div class="model-bar-label"><span>Density Sensitivity</span><span>96%</span></div>
+      <div class="model-bar"><div class="model-bar-fill" style="width:0%" data-width="96%"></div></div>
+      <div class="model-bar-label"><span>Insider Threat Detection</span><span>89%</span></div>
+      <div class="model-bar"><div class="model-bar-fill" style="width:0%" data-width="89%"></div></div>
+      <div class="model-score">0.87 <span>confidence</span></div>
+    </div>
+    <div class="model-card animate-on-scroll">
+      <div class="model-name">OC-SVM</div>
+      <div class="model-full-name">One-Class SVM</div>
+      <p class="model-desc">Learns a tight boundary around normal behavior. Anything outside triggers an alert — highly effective for zero-day behavioral anomalies.</p>
+      <div class="model-bar-label"><span>Boundary Precision</span><span>93%</span></div>
+      <div class="model-bar"><div class="model-bar-fill" style="width:0%" data-width="93%"></div></div>
+      <div class="model-bar-label"><span>Zero-Day Coverage</span><span>91%</span></div>
+      <div class="model-bar"><div class="model-bar-fill" style="width:0%" data-width="91%"></div></div>
+      <div class="model-score">0.89 <span>confidence</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO TERMINAL -->
+<section id="demo">
+  <span class="section-tag">// INTERACTIVE SIMULATION</span>
+  <h2 class="demo-title animate-on-scroll">Watch LateralShield in Action</h2>
+  <p class="demo-sub animate-on-scroll">Simulate real attack scenarios and see how the AI engine responds in real time.</p>
+
+  <div class="demo-terminal animate-on-scroll">
+    <div class="terminal-bar">
+      <div class="t-dot red"></div>
+      <div class="t-dot yellow"></div>
+      <div class="t-dot green"></div>
+      <span class="terminal-title">lateralshield — threat-simulation-engine v2.4.1</span>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <span class="t-line muted" style="animation-delay:0s; opacity:1"># LateralShield Threat Simulation Engine</span>
+      <span class="t-line muted" style="animation-delay:0.2s; opacity:1"># Select a simulation below to begin ↓</span>
+      <span class="t-line" style="opacity:1">&nbsp;</span>
+      <span class="t-line prompt" style="animation-delay:0.4s; opacity:1">lateralshield ready — awaiting simulation trigger <span class="blink">█</span></span>
+    </div>
+  </div>
+
+  <div class="demo-controls animate-on-scroll">
+    <button class="demo-btn" onclick="runSim('lateral')">▶ Lateral Movement</button>
+    <button class="demo-btn" onclick="runSim('portscan')">▶ Port Scan Attack</button>
+    <button class="demo-btn danger-btn" onclick="runSim('exfil')">▶ Data Exfiltration</button>
+    <button class="demo-btn" onclick="runSim('zeroday')">▶ Zero-Day Attempt</button>
+    <button class="demo-btn" onclick="clearTerm()">✕ Clear Terminal</button>
+  </div>
+</section>
+
+<!-- THREAT INTEL -->
+<section id="threat-intel">
+  <div class="animate-on-scroll">
+    <span class="section-tag">// LIVE THREAT INTELLIGENCE</span>
+    <h2 class="section-title">Real-Time Threat Overview</h2>
+    <p class="section-sub">Live threat scores and known malicious actor feeds — updated continuously from the detection engine.</p>
+  </div>
+  <div class="intel-grid">
+    <div class="intel-panel animate-on-scroll">
+      <div class="intel-panel-title">⚠ KNOWN MALICIOUS IPs — SIMULATED FEED</div>
+      <div class="ip-row"><span class="ip-addr">192.168.14.203</span><span class="ip-country">Internal — Subnet C</span><span class="ip-badge critical">CRITICAL</span></div>
+      <div class="ip-row"><span class="ip-addr">10.0.44.91</span><span class="ip-country">Internal — VPN</span><span class="ip-badge critical">CRITICAL</span></div>
+      <div class="ip-row"><span class="ip-addr">172.16.8.14</span><span class="ip-country">Internal — DMZ</span><span class="ip-badge high">HIGH</span></div>
+      <div class="ip-row"><span class="ip-addr">185.220.101.47</span><span class="ip-country">External — TOR Exit</span><span class="ip-badge critical">CRITICAL</span></div>
+      <div class="ip-row"><span class="ip-addr">194.165.16.11</span><span class="ip-country">External — RU/EU</span><span class="ip-badge high">HIGH</span></div>
+      <div class="ip-row"><span class="ip-addr">45.142.212.100</span><span class="ip-country">External — C2 Server</span><span class="ip-badge critical">CRITICAL</span></div>
+      <div class="ip-row"><span class="ip-addr">10.0.12.88</span><span class="ip-country">Internal — HR VLAN</span><span class="ip-badge medium">MEDIUM</span></div>
+    </div>
+    <div class="intel-panel animate-on-scroll">
+      <div class="intel-panel-title">🎯 CURRENT THREAT SCORE</div>
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" viewBox="0 0 200 120">
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#00ff88"/>
+              <stop offset="40%" style="stop-color:#ffe44d"/>
+              <stop offset="80%" style="stop-color:#ff7700"/>
+              <stop offset="100%" style="stop-color:#ff2244"/>
+            </linearGradient>
+          </defs>
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(0,200,255,0.1)" stroke-width="12"/>
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGrad)" stroke-width="12"
+                stroke-dasharray="251" stroke-dashoffset="63" stroke-linecap="round"/>
+          <line id="gaugeLine" x1="100" y1="100" x2="44" y2="42" stroke="#ffe44d" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="100" cy="100" r="6" fill="#ffe44d"/>
+          <text x="10" y="118" fill="#4a7a9b" font-size="9" font-family="Share Tech Mono">LOW</text>
+          <text x="160" y="118" fill="#4a7a9b" font-size="9" font-family="Share Tech Mono">HIGH</text>
+        </svg>
+        <div class="gauge-score" id="liveScore">0.73</div>
+        <div class="gauge-label">CURRENT THREAT SCORE</div>
+        <div class="gauge-detail">
+          <div class="gauge-detail-item">
+            <span class="gauge-detail-val" id="g-detected">14</span>
+            <span class="gauge-detail-key">Detected Today</span>
+          </div>
+          <div class="gauge-detail-item">
+            <span class="gauge-detail-val" id="g-trapped">11</span>
+            <span class="gauge-detail-key">Trapped</span>
+          </div>
+          <div class="gauge-detail-item">
+            <span class="gauge-detail-val" id="g-blocked">3</span>
+            <span class="gauge-detail-key">Blocked IPs</span>
+          </div>
+          <div class="gauge-detail-item">
+            <span class="gauge-detail-val" id="g-ms">9ms</span>
+            <span class="gauge-detail-key">Avg Response</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <span class="cta-pre">// READY TO DEPLOY</span>
+  <h2 class="cta-title animate-on-scroll">Your Network Deserves<br><span class="accent">Active Defense</span></h2>
+  <p class="cta-sub animate-on-scroll">Deploy LateralShield in your SOC environment. Full API integration, role-based access, and blockchain audit trails included.</p>
+  <div class="cta-btns animate-on-scroll">
+    <a href="#" class="btn-primary" onclick="openDummyModal('Enter Dashboard')">▶ Enter Dashboard</a>
+    <a href="#demo" class="btn-secondary">Run Simulation</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">LATERAL<span>SHIELD</span> + TRAPWEAVE</div>
+  <div class="footer-copy">© 2025 LATERALSHIELD · INTELLIGENT LATERAL THREAT TRAP · RESEARCH PROTOTYPE</div>
+  <div class="footer-links">
+    <a href="#" onclick="openDummyModal('Documentation'); return false;">Docs</a>
+    <a href="#" onclick="openDummyModal('API Reference'); return false;">API</a>
+    <a href="#" onclick="openDummyModal('GitHub Repository'); return false;">GitHub</a>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- MODAL: DUMMY DATA SINE GRAPH            -->
+<!-- ═══════════════════════════════════════ -->
+<div id="dummyDataModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); align-items:center; justify-content:center;">
+  <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; width:90%; max-width:800px; padding:24px; box-shadow:0 0 40px rgba(0,0,0,0.8); position:relative;">
+    <!-- Close Button -->
+    <div onclick="closeDummyModal()" style="position:absolute; top:20px; right:20px; width:32px; height:32px; border-radius:16px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; color:var(--muted); transition:0.2s;" onmouseover="this.style.color='#fff'; this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.color='var(--muted)'; this.style.background='rgba(255,255,255,0.05)'">✕</div>
+    
+    <div style="border-radius:12px; padding:20px 24px; margin-bottom:20px; border:1px solid var(--cyan); background:rgba(0,210,255,0.05);">
+      <div style="font-family:var(--font-head); font-size:1.4rem; letter-spacing:3px; color:var(--cyan); text-transform:uppercase;" id="dummyModalTitle">ACTION INITIATED</div>
+      <div style="font-family:var(--font-mono); font-size:0.85rem; color:var(--muted); margin-top:6px;">Simulated telemetry verification stream active.</div>
+    </div>
+    
+    <div style="margin-bottom:20px; padding:20px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:8px;">
+      <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text); letter-spacing:1px; text-transform:uppercase; margin-bottom:12px;">LIVE TELEMETRY WAVEFORM (SIN X)</div>
+      <div style="width:100%; height:200px; position:relative; overflow:hidden; border-radius:8px; border:1px solid rgba(255,255,255,0.05); background:rgba(0,0,0,0.3);">
+        <canvas id="dummySineCanvas" style="width:100%; height:100%;"></canvas>
+      </div>
+    </div>
+
+    <div style="padding:20px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:8px;">
+      <div style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text); letter-spacing:1px; text-transform:uppercase; margin-bottom:12px;">EXECUTION LOGS</div>
+      <div style="background:#010409; height:120px; padding:16px; border-radius:8px; font-family:var(--font-mono); font-size:0.8rem; overflow:hidden;">
+        <div style="color:var(--green); margin-bottom:4px;">[00:00:01] SYSTEM: Initializing action sequence...</div>
+        <div style="color:var(--green); margin-bottom:4px;">[00:00:02] PROCESS: Executing cryptographic headers...</div>
+        <div style="color:var(--cyan);">[00:00:03] SUCCESS: Action dispatched to target node successfully.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CURSOR ───
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursorRing');
+let mx = -100, my = -100, rx = -100, ry = -100;
+document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+function animCursor() {
+  rx += (mx - rx) * 0.15; ry += (my - ry) * 0.15;
+  cursor.style.left = mx + 'px'; cursor.style.top = my + 'px';
+  ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+  requestAnimationFrame(animCursor);
+}
+animCursor();
+document.querySelectorAll('button, a, .feature-card, .model-card, .ip-row, .tl-item').forEach(el => {
+  el.addEventListener('mouseenter', () => { ring.style.width = '48px'; ring.style.height = '48px'; ring.style.opacity = '0.8'; });
+  el.addEventListener('mouseleave', () => { ring.style.width = '32px'; ring.style.height = '32px'; ring.style.opacity = '0.5'; });
+});
+
+// ─── SCROLL ANIMATIONS ───
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+
+// ─── MODEL BARS ───
+const barObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('.model-bar-fill').forEach(bar => {
+        bar.style.width = bar.dataset.width;
+      });
+    }
+  });
+}, { threshold: 0.2 });
+document.querySelectorAll('.model-card').forEach(c => barObserver.observe(c));
+
+// ─── NETWORK CANVAS ANIMATION ───
+const canvas = document.getElementById('networkCanvas');
+const ctx = canvas.getContext('2d');
+const W = 560, H = 460;
+canvas.width = W; canvas.height = H;
+
+const nodes = [
+  { id: 0, x: 280, y: 80, label: 'GATEWAY', type: 'router', r: 18 },
+  { id: 1, x: 120, y: 180, label: 'WEB-01', type: 'server', r: 14 },
+  { id: 2, x: 280, y: 200, label: 'DB-MAIN', type: 'database', r: 16 },
+  { id: 3, x: 440, y: 180, label: 'AUTH-SRV', type: 'server', r: 14 },
+  { id: 4, x: 80, y: 320, label: 'WS-04', type: 'workstation', r: 12 },
+  { id: 5, x: 200, y: 340, label: 'FILE-SRV', type: 'server', r: 14 },
+  { id: 6, x: 360, y: 340, label: 'WS-07', type: 'workstation', r: 12 },
+  { id: 7, x: 480, y: 320, label: 'BACKUP', type: 'server', r: 12 },
+  { id: 8, x: 280, y: 400, label: '🍯 TRAP-A', type: 'honeypot', r: 14 },
+  { id: 9, x: 140, y: 400, label: '🍯 TRAP-B', type: 'honeypot', r: 14 },
+];
+
+const edges = [
+  [0,1],[0,2],[0,3],[1,4],[1,5],[2,5],[2,6],[3,7],[3,6],[5,8],[6,9]
+];
+
+let phase = 0; // 0=normal, 1=attack, 2=detect, 3=trap, 4=resolved
+let phaseTimer = 0;
+let attackerPos = { x: -40, y: 80 };
+let attackPath = [0,1,5,2];
+let attackStep = 0;
+let attackT = 0;
+let trapActive = false;
+let gaugePulse = 0;
+let scoreVal = 0.12;
+let targetScore = 0.12;
+let particles = [];
+const phaseNames = ['MONITORING', 'ATTACK DETECTED', 'ML ANALYZING', 'TRAPWEAVE ACTIVE', 'THREAT CONTAINED'];
+const phaseColors = ['#00c8ff', '#ff7700', '#ffe44d', '#ff2244', '#00ff88'];
+
+function nodeColor(n, phase) {
+  if (n.type === 'honeypot') return trapActive ? '#ff2244' : '#333';
+  if (phase >= 2 && attackPath.slice(0, attackStep+1).includes(n.id)) return '#ff7700';
+  if (phase === 4 && attackPath.includes(n.id)) return '#00ff88';
+  return '#00c8ff';
+}
+
+function addParticle(x, y, color) {
+  for(let i=0;i<6;i++) {
+    particles.push({
+      x, y, vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3,
+      life: 1, color, r: Math.random()*3+1
+    });
+  }
+}
+
+function drawFrame() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctx.strokeStyle = 'rgba(0,200,255,0.04)';
+  ctx.lineWidth = 1;
+  for(let x=0;x<W;x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<H;y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Edges
+  edges.forEach(([a,b]) => {
+    const na = nodes[a], nb = nodes[b];
+    const isAttackEdge = phase >= 1 && attackPath.some((id,i) => i>0 && ((attackPath[i-1]===a&&id===b)||(attackPath[i-1]===b&&id===a)));
+    ctx.beginPath();
+    ctx.moveTo(na.x, na.y); ctx.lineTo(nb.x, nb.y);
+    if (isAttackEdge && phase >= 2) {
+      ctx.strokeStyle = phase === 4 ? 'rgba(0,255,136,0.5)' : 'rgba(255,119,0,0.5)';
+      ctx.lineWidth = 2;
+    } else {
+      ctx.strokeStyle = 'rgba(0,200,255,0.15)';
+      ctx.lineWidth = 1;
+    }
+    ctx.stroke();
+  });
+
+  // Particles
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = p.color + Math.floor(p.life * 255).toString(16).padStart(2,'0');
+    ctx.fill();
+  });
+
+  // Nodes
+  nodes.forEach(n => {
+    const col = nodeColor(n, phase);
+    const isHoneypot = n.type === 'honeypot';
+    const glow = (phase >= 3 && isHoneypot) ? 20 : 8;
+
+    // Glow
+    const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 3);
+    grad.addColorStop(0, col + '44');
+    grad.addColorStop(1, 'transparent');
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.r * 3, 0, Math.PI*2);
+    ctx.fillStyle = grad; ctx.fill();
+
+    // Outer ring
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4, 0, Math.PI*2);
+    ctx.strokeStyle = col + '44'; ctx.lineWidth = 1; ctx.stroke();
+
+    // Node body
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    ctx.fillStyle = isHoneypot && trapActive ? 'rgba(255,34,68,0.2)' : 'rgba(2,4,8,0.9)';
+    ctx.strokeStyle = col;
+    ctx.lineWidth = phase === 4 ? 3 : isHoneypot && trapActive ? 3 : 1.5;
+    ctx.fill(); ctx.stroke();
+
+    // Label
+    ctx.font = `10px 'Share Tech Mono'`;
+    ctx.fillStyle = col;
+    ctx.textAlign = 'center';
+    ctx.fillText(n.label, n.x, n.y + n.r + 16);
+  });
+
+  // Attacker dot
+  if (phase === 1 || phase === 2) {
+    const t = attackT;
+    const from = nodes[attackPath[Math.floor(attackStep)]];
+    const to = nodes[attackPath[Math.min(Math.floor(attackStep)+1, attackPath.length-1)]];
+    const ax = from.x + (to.x - from.x) * (attackStep % 1 || t);
+    const ay = from.y + (to.y - from.y) * (attackStep % 1 || t);
+
+    // Pulse ring
+    const pulse = (Math.sin(Date.now()/150)+1)/2;
+    ctx.beginPath(); ctx.arc(ax, ay, 8 + pulse*6, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,34,68,${0.3 - pulse*0.3})`; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.beginPath(); ctx.arc(ax, ay, 8, 0, Math.PI*2);
+    ctx.fillStyle = '#ff2244'; ctx.fill();
+    ctx.strokeStyle = '#ff6680'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // attacker label
+    ctx.font = "9px 'Share Tech Mono'"; ctx.fillStyle = '#ff2244';
+    ctx.fillText('⚠ ATTACKER', ax, ay - 16);
+  }
+
+  // Phase banner
+  const col = phaseColors[phase];
+  ctx.font = "bold 10px 'Orbitron'";
+  ctx.fillStyle = col;
+  ctx.textAlign = 'left';
+  ctx.fillText('// ' + phaseNames[phase], 16, 28);
+
+  if (phase >= 2) {
+    ctx.font = "9px 'Share Tech Mono'";
+    ctx.fillStyle = 'rgba(0,200,255,0.6)';
+    ctx.fillText(`ANOMALY: ${scoreVal.toFixed(2)} | ML: 3/3 ACTIVE`, 16, 46);
+  }
+
+  ctx.textAlign = 'left';
+  requestAnimationFrame(drawFrame);
+}
+
+// Phase machine
+let lastPhaseTime = Date.now();
+function updatePhase() {
+  const now = Date.now();
+  const elapsed = now - lastPhaseTime;
+
+  // Animate score
+  scoreVal += (targetScore - scoreVal) * 0.03;
+
+  if (phase === 0) {
+    if (elapsed > 2000) { phase = 1; lastPhaseTime = now; attackStep = 0; attackT = 0; targetScore = 0.78; updateStatusPanel(); }
+  } else if (phase === 1) {
+    attackT += 0.008;
+    if (attackT >= 1) {
+      attackT = 0; attackStep++;
+      if (attackStep >= attackPath.length - 1) { phase = 2; lastPhaseTime = now; updateStatusPanel(); }
+    }
+  } else if (phase === 2) {
+    if (elapsed > 1800) { phase = 3; lastPhaseTime = now; trapActive = true; targetScore = 0.92; updateStatusPanel(); addParticle(280,400,'#ff2244'); addParticle(140,400,'#ff2244'); }
+  } else if (phase === 3) {
+    if (elapsed > 2500) { phase = 4; lastPhaseTime = now; targetScore = 0.18; updateStatusPanel(); }
+  } else if (phase === 4) {
+    if (elapsed > 4000) { phase = 0; lastPhaseTime = now; trapActive = false; attackStep = 0; attackT = 0; targetScore = 0.12; updateStatusPanel(); }
+  }
+
+  // Update live score display
+  document.getElementById('liveScore').textContent = scoreVal.toFixed(2);
+
+  setTimeout(updatePhase, 50);
+}
+
+function updateStatusPanel() {
+  const threats = ['CRITICAL','HIGH','CRITICAL','HIGH','NORMAL'];
+  const scores = ['0.12','0.78','0.86','0.92','0.18'];
+  const traps = ['STANDBY','STANDBY','ANALYZING','ACTIVE — ENGAGED','SECURED'];
+  const phases = ['MONITORING','LATERAL MOVE','ML ANALYSIS','TRAP TRIGGERED','CONTAINED'];
+  const colors = ['green','red','yellow','red','green'];
+
+  document.getElementById('s-threat').textContent = ['NORMAL','CRITICAL','CRITICAL','CRITICAL','NORMAL'][phase];
+  document.getElementById('s-threat').className = 'status-val ' + ['green','red','red','red','green'][phase];
+  document.getElementById('s-score').textContent = scores[phase];
+  document.getElementById('s-score').className = 'status-val ' + ['','red','yellow','red','green'][phase];
+  document.getElementById('s-trap').textContent = traps[phase];
+  document.getElementById('s-trap').className = 'status-val ' + ['','','','red','green'][phase];
+  document.getElementById('s-phase').textContent = phases[phase];
+}
+
+drawFrame();
+updatePhase();
+
+// ─── TERMINAL SIMULATION ───
+const simulations = {
+  lateral: [
+    { t: 0, cls: 'prompt', text: 'start simulation --type=lateral_movement' },
+    { t: 400, cls: 'info', text: '[ INIT ] Loading behavioral baseline for network segment...' },
+    { t: 800, cls: 'muted', text: '[ INFO ] 847 normal connection patterns loaded.' },
+    { t: 1200, cls: 'warn', text: '[ WARN ] Anomalous auth attempt: 192.168.4.23 → 192.168.1.15' },
+    { t: 1800, cls: 'warn', text: '[ WARN ] Credential reuse detected. Same hash, 3 targets.' },
+    { t: 2200, cls: 'danger', text: '[ ALERT ] Isolation Forest: score=0.83 | ANOMALY' },
+    { t: 2500, cls: 'danger', text: '[ ALERT ] LOF: score=0.79 | ANOMALY' },
+    { t: 2800, cls: 'danger', text: '[ ALERT ] OC-SVM: score=0.88 | ANOMALY' },
+    { t: 3200, cls: 'danger', text: '[ CRITICAL ] Ensemble score: 0.83 — LATERAL MOVEMENT CONFIRMED' },
+    { t: 3600, cls: 'info', text: '[ SHAP ] Top features: auth_velocity(+0.42), hop_count(+0.31), port_diversity(+0.28)' },
+    { t: 4000, cls: 'success', text: '[ TRAPWEAVE ] Deploying honeypot on predicted next targets: WS-04, FILE-SRV' },
+    { t: 4400, cls: 'success', text: '[ TRAPWEAVE ] Attacker redirected → TRAP-A (192.168.99.10)' },
+    { t: 4800, cls: 'success', text: '[ CAPTURE ] Full session captured. TTPs documented. Real assets intact.' },
+    { t: 5200, cls: 'success', text: '[ RESPONSE ] Host 192.168.4.23 isolated. Port 445 blocked. Blockchain log created.' },
+    { t: 5600, cls: 'success', text: '[ DONE ] Incident response complete. Dwell time: 0:00:23 ✓' },
+  ],
+  portscan: [
+    { t: 0, cls: 'prompt', text: 'start simulation --type=port_scan' },
+    { t: 400, cls: 'info', text: '[ INIT ] Network scan detector active on all subnets...' },
+    { t: 900, cls: 'warn', text: '[ WARN ] Unusual SYN packet burst: 10.0.44.91 — 512 ports in 1.2s' },
+    { t: 1400, cls: 'danger', text: '[ ALERT ] Port scan signature matched. IF score: 0.91' },
+    { t: 1900, cls: 'danger', text: '[ ALERT ] Target: 192.168.1.1–254 (full subnet sweep)' },
+    { t: 2400, cls: 'success', text: '[ TRAPWEAVE ] Fake port responses injected. Attacker sees phantom services.' },
+    { t: 2900, cls: 'success', text: '[ TRAPWEAVE ] Attacker connecting to fake SSH (port 22) honeypot...' },
+    { t: 3400, cls: 'success', text: '[ CAPTURE ] Session recorded. Attacker fingerprinted.' },
+    { t: 3800, cls: 'success', text: '[ DONE ] Scan neutralized. Source IP blacklisted. ✓' },
+  ],
+  exfil: [
+    { t: 0, cls: 'prompt', text: 'start simulation --type=data_exfiltration' },
+    { t: 400, cls: 'info', text: '[ INIT ] DLP monitor active. Baseline outbound: 2.3 MB/hr' },
+    { t: 1000, cls: 'warn', text: '[ WARN ] Spike detected: 192.168.2.44 sending 840MB in 4 minutes' },
+    { t: 1600, cls: 'warn', text: '[ WARN ] Destination: 45.142.212.100 (known C2 server)' },
+    { t: 2000, cls: 'danger', text: '[ ALERT ] LOF anomaly: data_volume_ratio=94th percentile' },
+    { t: 2500, cls: 'danger', text: '[ CRITICAL ] EXFILTRATION IN PROGRESS — BLOCKING EGRESS' },
+    { t: 3000, cls: 'success', text: '[ RESPONSE ] Outbound connection to 45.142.212.100 terminated.' },
+    { t: 3400, cls: 'success', text: '[ RESPONSE ] 192.168.2.44 network access suspended.' },
+    { t: 3800, cls: 'success', text: '[ LOG ] 11MB transferred before block. Blockchain audit trail created.' },
+    { t: 4200, cls: 'success', text: '[ DONE ] Exfiltration stopped. Data loss minimized. ✓' },
+  ],
+  zeroday: [
+    { t: 0, cls: 'prompt', text: 'start simulation --type=zero_day --unknown=true' },
+    { t: 500, cls: 'info', text: '[ INIT ] OC-SVM behavioral boundary loaded. 30-day baseline active.' },
+    { t: 1000, cls: 'muted', text: '[ INFO ] No known signatures matched. Pattern is novel.' },
+    { t: 1600, cls: 'warn', text: '[ WARN ] OC-SVM boundary violation detected. Score: 0.88 | OUTSIDE NORM' },
+    { t: 2100, cls: 'warn', text: '[ WARN ] Behavior profile: unusual API call sequence + memory access pattern' },
+    { t: 2600, cls: 'danger', text: '[ ALERT ] ⚠ ZERO-DAY TAG: Unknown pattern — no CVE match' },
+    { t: 3100, cls: 'danger', text: '[ ALERT ] Ensemble agrees: 3/3 anomaly — confidence 0.86' },
+    { t: 3600, cls: 'success', text: '[ TRAPWEAVE ] Decoy environment instantiated. Exploit redirected.' },
+    { t: 4000, cls: 'success', text: '[ RESEARCH ] Exploit behavior captured for analysis & signature creation.' },
+    { t: 4400, cls: 'success', text: '[ DONE ] Zero-day neutralized. Threat profile saved. ✓' },
+  ]
+};
+
+let simRunning = false;
+let simTimeouts = [];
+
+function clearTerm() {
+  simTimeouts.forEach(t => clearTimeout(t)); simTimeouts = [];
+  simRunning = false;
+  document.getElementById('terminalBody').innerHTML = `
+    <span class="t-line muted" style="opacity:1"># LateralShield Threat Simulation Engine</span>
+    <span class="t-line muted" style="opacity:1"># Select a simulation below to begin ↓</span>
+    <span class="t-line" style="opacity:1">&nbsp;</span>
+    <span class="t-line prompt" style="opacity:1">lateralshield ready — awaiting simulation trigger <span class="blink">█</span></span>
+  `;
+}
+
+function runSim(type) {
+  if (simRunning) clearTerm();
+  simRunning = true;
+  const body = document.getElementById('terminalBody');
+  body.innerHTML = '';
+  const lines = simulations[type];
+  lines.forEach(({ t, cls, text }) => {
+    const to = setTimeout(() => {
+      const span = document.createElement('span');
+      span.className = `t-line ${cls}`;
+      span.style.animationDelay = '0s';
+      span.textContent = text;
+      body.appendChild(span);
+      body.scrollTop = body.scrollHeight;
+      if (t === lines[lines.length - 1].t) {
+        setTimeout(() => { simRunning = false; }, 500);
+      }
+    }, t);
+    simTimeouts.push(to);
+  });
+}
+
+// Nav scroll
+function scrollToDashboard() { document.getElementById('demo').scrollIntoView({ behavior: 'smooth' }); }
+
+// ─── DUMMY DATA MODAL (SIN X GRAPH) ───
+let dummySineAnimFrame = null;
+let dummySineOffset = 0;
+function openDummyModal(title) {
+  document.getElementById('dummyModalTitle').textContent = title;
+  document.getElementById('dummyDataModal').style.display = 'flex';
+  
+  const canvas = document.getElementById('dummySineCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  
+  function drawDummySine() {
+    dummySineOffset += 0.05;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    
+    // Draw Grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let x=0; x<canvas.width; x+=100) { ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); }
+    for (let y=0; y<canvas.height; y+=100) { ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); }
+    ctx.stroke();
+    
+    // Draw Sin(x)
+    ctx.beginPath();
+    ctx.strokeStyle = '#00d2ff';
+    ctx.lineWidth = 4;
+    for (let x=0; x<canvas.width; x++) {
+      const y = canvas.height/2 + Math.sin(x*0.02 + dummySineOffset) * (canvas.height/3);
+      if (x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.shadowColor = '#00d2ff';
+    ctx.shadowBlur = 20;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    
+    dummySineAnimFrame = requestAnimationFrame(drawDummySine);
+  }
+  
+  if (dummySineAnimFrame) cancelAnimationFrame(dummySineAnimFrame);
+  drawDummySine();
+}
+
+function closeDummyModal() {
+  document.getElementById('dummyDataModal').style.display = 'none';
+  if (dummySineAnimFrame) cancelAnimationFrame(dummySineAnimFrame);
+}
+
+// Animate stats counter
+function countUp(id, target, suffix = '', decimals = 0) {
+  const el = document.getElementById(id);
+  let current = 0;
+  const step = target / 60;
+  const timer = setInterval(() => {
+    current = Math.min(current + step, target);
+    el.textContent = decimals ? current.toFixed(decimals) + suffix : Math.floor(current) + suffix;
+    if (current >= target) clearInterval(timer);
+  }, 16);
+}
+setTimeout(() => {
+  countUp('g-detected', 14);
+  countUp('g-trapped', 11);
+  countUp('g-blocked', 3);
+}, 1000);
+
+// Live score fluctuation
+setInterval(() => {
+  if (phase === 0) {
+    const base = 0.12; const noise = (Math.random() - 0.5) * 0.06;
+    document.getElementById('liveScore').textContent = Math.max(0, Math.min(1, base + noise)).toFixed(2);
+  }
+}, 2000);
+</script>
+</body>
+</html>

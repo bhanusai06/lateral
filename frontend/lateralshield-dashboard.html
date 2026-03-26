@@ -1,0 +1,1818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LateralShield — Elite SOC Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<!-- Three.js for 3D Network Topology Map -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root {
+    --bg-base: #030712;
+    --panel-bg: rgba(11, 16, 26, 0.65);
+    --panel-border: rgba(0, 200, 255, 0.15);
+    --panel-glow: rgba(0, 200, 255, 0.05);
+    
+    --cyan: #00d2ff;
+    --cyan-dim: rgba(0, 210, 255, 0.2);
+    --red: #ff2a4d;
+    --red-dim: rgba(255, 42, 77, 0.2);
+    --orange: #ff8c00;
+    --green: #00e676;
+    --yellow: #ffdf00;
+    
+    --text-main: #e2e8f0;
+    --text-muted: #8b9bb4;
+    
+    --font-ui: 'Rajdhani', sans-serif;
+    --font-data: 'Share Tech Mono', monospace;
+    --font-head: 'Orbitron', sans-serif;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg-base); color: var(--text-main); font-family: var(--font-ui); cursor: default; }
+  
+  /* Cyberpunk Background Grid */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: 
+      linear-gradient(rgba(0, 210, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 210, 255, 0.03) 1px, transparent 1px);
+    background-size: 30px 30px;
+    background-position: center center;
+  }
+  
+  /* Radial Glow behind panels */
+  .bg-glow {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 60vw; height: 60vw;
+    background: radial-gradient(circle, rgba(0, 200, 255, 0.04) 0%, transparent 60%);
+    z-index: 0; pointer-events: none;
+  }
+
+  /* TOP NAVBAR */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 56px;
+    background: rgba(3, 7, 18, 0.8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--panel-border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; z-index: 500;
+  }
+  .tb-logo { font-family: var(--font-head); font-size: 1.1rem; color: var(--cyan); letter-spacing: 4px; display: flex; align-items: baseline; gap: 12px; }
+  .tb-logo span.accent { color: var(--red); }
+  .tb-logo span.sub { font-family: var(--font-data); font-size: 0.65rem; color: var(--text-muted); letter-spacing: 2px; font-weight: 400; padding-bottom: 2px;}
+  
+  .tb-center { display: flex; gap: 32px; align-items: center; }
+  .tb-status { display: flex; align-items: center; gap: 8px; font-family: var(--font-data); font-size: 0.7rem; font-weight: 600; letter-spacing: 1px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-dot.green { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .status-dot.red { background: var(--red); box-shadow: 0 0 10px var(--red); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  
+  .tb-right { display: flex; gap: 16px; align-items: center; }
+  .tb-time { font-family: var(--font-data); font-size: 0.8rem; color: var(--cyan); }
+  .tb-btn { background: transparent; border: 1px solid var(--panel-border); color: var(--text-muted); font-family: var(--font-data); font-size: 0.65rem; padding: 6px 14px; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; letter-spacing: 1px; }
+  .tb-btn:hover { background: var(--cyan-dim); color: var(--cyan); border-color: var(--cyan); }
+
+  /* SIDEBAR NAVIGATION */
+  .sidebar {
+    position: fixed; top: 56px; left: 0; bottom: 0; width: 64px;
+    background: rgba(3, 7, 18, 0.8); backdrop-filter: blur(12px);
+    border-right: 1px solid var(--panel-border);
+    display: flex; flex-direction: column; align-items: center; padding: 20px 0; gap: 16px;
+    z-index: 400;
+  }
+  .sb-icon, a.sb-icon { 
+    width: 44px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; 
+    font-size: 1.2rem; color: var(--text-muted); cursor: pointer; 
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); position: relative;
+    text-decoration: none;
+  }
+  .sb-icon:hover, a.sb-icon:hover { color: var(--cyan); background: rgba(0, 210, 255, 0.05); }
+  .sb-icon.active, a.sb-icon.active { color: var(--bg-base); background: var(--cyan); box-shadow: 0 0 15px rgba(0, 210, 255, 0.4); }
+  a.sb-icon:hover::after, .sb-icon::after {
+    content: attr(data-tooltip); position: absolute; left: 60px;
+    background: var(--cyan); color: var(--bg-base); font-family: var(--font-ui); font-size: 0.7rem; font-weight: 600;
+    padding: 4px 10px; border-radius: 4px; opacity: 0; pointer-events: none; transform: translateX(-10px); transition: all 0.2s; white-space: nowrap;
+  }
+  .sb-icon:hover::after, a.sb-icon:hover::after { opacity: 1; transform: translateX(0); }
+
+  /* MAIN SPA CONTAINER */
+  .main-content {
+    position: fixed; top: 56px; left: 64px; right: 0; bottom: 0;
+    padding: 24px; overflow-y: auto; overflow-x: hidden; z-index: 10;
+  }
+  
+  /* SPA VIEWS */
+  .spa-view { display: none; animation: fadeSlideUp 0.4s ease forwards; }
+  .spa-view.active { display: block; }
+  @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* PREMIUM GLASS PANELS */
+  .panel { 
+    background: var(--panel-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border); border-radius: 12px;
+    padding: 20px; position: relative; overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .panel::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity: 0.5; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px; }
+  .panel-title { font-family: var(--font-ui); font-size: 0.85rem; font-weight: 600; color: var(--text-main); letter-spacing: 1px; text-transform: uppercase; display: flex; align-items: center; gap: 8px;}
+  .panel-title::before { content:''; display:inline-block; width:4px; height:14px; background:var(--cyan); border-radius:2px; }
+  
+  /* GRID LAYOUTS FOR VIEWS */
+  .grid-overview { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .grid-full { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  .grid-split { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+
+  /* METRICS OVERVIEW (Dashboard View) */
+  .metric-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; grid-column: span 3; }
+  .m-card { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; }
+  .m-val { font-family: var(--font-data); font-size: 2rem; font-weight: 800; color: var(--cyan); line-height: 1; margin-bottom: 8px; }
+  .m-val.critical { color: var(--red); }
+  .m-val.warn { color: var(--yellow); }
+  .m-val.good { color: var(--green); }
+  .m-label { font-family: var(--font-ui); font-size: 0.75rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 1px;}
+  
+  /* THREAT GAUGE & CONSENSUS */
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; }
+  .gauge-val-text { font-family: var(--font-data); font-size: 2.5rem; font-weight: 800; margin-top: -10px; color: var(--red); text-shadow: 0 0 20px rgba(255,42,77,0.4); }
+  
+  .consensus-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+  .c-row { display: flex; align-items: center; gap: 12px; }
+  .c-name { width: 120px; font-family: var(--font-ui); font-size: 0.75rem; color: var(--text-muted); }
+  .c-bar-bg { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+  .c-bar-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--red)); border-radius: 3px; transition: width 1s; }
+  .c-score { width: 40px; text-align: right; font-family: var(--font-data); font-size: 0.8rem; font-weight: 700; color: var(--text-main); }
+
+  /* PRIORITY INTRUSION STATUS */
+  @keyframes intrusionPulse {
+    0% { box-shadow: 0 0 10px rgba(255,42,77,0.2); transform: scale(1); }
+    50% { box-shadow: 0 0 40px rgba(255,42,77,0.6); transform: scale(1.02); }
+    100% { box-shadow: 0 0 10px rgba(255,42,77,0.2); transform: scale(1); }
+  }
+  @keyframes textBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .priority-safe { border-color: rgba(0,255,136,0.3) !important; box-shadow: 0 0 20px rgba(0,255,136,0.05); }
+  .priority-safe #m-active { color: var(--green); }
+  .priority-safe #intrusionStatusLabel { color: var(--green); }
+
+  .priority-critical { 
+    border-color: var(--red) !important; 
+    background: rgba(255,42,77,0.05) !important;
+    animation: intrusionPulse 1.2s infinite ease-in-out; 
+  }
+  .priority-critical #m-active { color: var(--red); text-shadow: 0 0 30px rgba(255,42,77,0.8) !important; }
+  .priority-critical #intrusionStatusLabel { 
+    color: var(--red); 
+    animation: textBlink 1s infinite;
+  }
+
+  /* SHAP & ALERTS (Alerts View) */
+  .shap-row { display: flex; align-items: center; gap: 16px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .shap-feat { width: 140px; font-family: var(--font-data); font-size: 0.75rem; color: var(--text-main); }
+  .shap-track { flex: 1; height: 8px; background: rgba(0,0,0,0.4); border-radius: 4px; position: relative; }
+  .shap-fill { height: 100%; border-radius: 4px; transition: width 1s; position: absolute; left: 50%; transform: translateX(-50%); }
+  .shap-fill.pos { background: var(--red); box-shadow: 0 0 10px var(--red-dim); }
+  .shap-fill.neg { background: var(--cyan); box-shadow: 0 0 10px var(--cyan-dim); }
+  /* MICRO-ANIMATIONS */
+  .m-card { transition: transform 0.2s ease, box-shadow 0.2s; position: relative; }
+  .m-card:hover { transform: scale(1.02); box-shadow: 0 4px 20px rgba(0,210,255,0.15); z-index: 2; }
+  .m-card[data-info]:hover::after {
+    content: attr(data-info); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    background: var(--cyan); color: var(--bg-base); font-family: var(--font-ui); font-size: 0.7rem; font-weight: 700;
+    padding: 6px 10px; border-radius: 4px; pointer-events: none; white-space: nowrap; margin-bottom: 8px; z-index: 10;
+    box-shadow: 0 4px 12px rgba(0,210,255,0.4);
+  }
+  
+  @keyframes neonFlicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { text-shadow: 0 0 5px var(--cyan), 0 0 10px var(--cyan), 0 0 20px var(--cyan); opacity: 1; }
+    20%, 24%, 55% { text-shadow: none; opacity: 0.5; }
+  }
+  .trapweave-flicker { animation: neonFlicker 4s infinite alternate; }
+  
+  @keyframes dotPulse { 
+    0%, 100% {opacity:1; transform:scale(1);} 
+    50% {opacity:0.4; transform:scale(0.8); box-shadow: 0 0 0px transparent;} 
+  }
+  .status-dot.green { animation: dotPulse 2s infinite ease-in-out; }
+
+  /* LIVE ALERT STREAM MINI CARDS */
+  @keyframes slideDownFade {
+    0% { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  
+  /* THREAT GAUGE ANIMATIONS */
+  @keyframes criticalPulseGlow {
+    0%, 100% { filter: drop-shadow(0 0 10px rgba(255,42,77,0.4)); }
+    50% { filter: drop-shadow(0 0 30px rgba(255,42,77,0.9)); }
+  }
+  @keyframes subtleShake {
+    0% { transform: translate(0, 0); }
+    20% { transform: translate(-1px, 1px); }
+    40% { transform: translate(1px, -1px); }
+    60% { transform: translate(-1px, 0); }
+    80% { transform: translate(1px, 0); }
+    100% { transform: translate(0, 0); }
+  }
+  @keyframes fastBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+  .gauge-critical-state {
+    animation: criticalPulseGlow 1.5s infinite, subtleShake 0.4s infinite;
+  }
+  .text-blink { animation: fastBlink 0.8s infinite; }
+
+  .mini-alert {
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 6px; padding: 12px; position: relative; overflow: hidden;
+    animation: slideDownFade 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
+    transition: opacity 1s ease;
+  }
+  .mini-alert.fading { opacity: 0; }
+  .ma-strip { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+  .ma-title { font-family: var(--font-ui); font-size: 0.75rem; font-weight: 700; color: var(--text-main); margin-left:8px; }
+  .ma-meta { font-family: var(--font-data); font-size: 0.7rem; color: var(--text-muted); margin-left:8px; display:flex; justify-content:space-between; }
+  .ma-conf { font-family: var(--font-data); font-size: 0.75rem; font-weight:700; text-align:right;}
+
+  .alert-box { background: rgba(255,42,77,0.05); border-left: 4px solid var(--red); padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 12px; transition: all 0.2s; }
+  .alert-box:hover { background: rgba(255,42,77,0.1); transform: translateX(4px); }
+  .alert-head { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .alert-title { font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
+  .alert-time { font-family: var(--font-data); font-size: 0.7rem; color: var(--text-muted); }
+  .alert-ip { font-family: var(--font-data); font-size: 0.8rem; color: var(--red); margin-top: 4px; }
+  .btn-action { margin-top: 12px; background: transparent; border: 1px solid var(--red); color: var(--red); padding: 6px 16px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: 0.2s; }
+  .btn-action:hover { background: var(--red); color: white; }
+
+  /* LOGS VIEW (Matrix style) */
+  .terminal-box { background: #010409; border: 1px solid rgba(0,255,136,0.2); border-radius: 8px; height: 600px; padding: 20px; overflow-y: auto; font-family: var(--font-data); font-size: 0.8rem; box-shadow: inset 0 0 40px rgba(0,255,136,0.05); scrollbar-color: var(--green) #010409;}
+  .log-line { display: flex; gap: 16px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.02); animation: logSlide 0.2s ease-out; }
+  @keyframes logSlide { from{opacity:0; transform:translateX(-10px);} to{opacity:1; transform:translateX(0);} }
+  .ll-time { color: var(--text-muted); width: 80px; flex-shrink: 0;}
+  .ll-ip { color: var(--cyan); width: 130px; flex-shrink: 0;}
+  .ll-msg { color: var(--text-main); flex: 1; }
+  .log-line.danger .ll-msg { color: var(--red); font-weight: 700; }
+  .log-line.warn .ll-msg { color: var(--yellow); }
+  .log-line.sys .ll-msg { color: var(--green); }
+
+  /* NETWORK CANVAS */
+  .canvas-wrap { width: 100%; height: 600px; background: rgba(0,0,0,0.5); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* SETTINGS */
+  .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .setting-info h4 { font-size: 0.9rem; color: var(--text-main); margin-bottom: 4px; }
+  .setting-info p { font-size: 0.75rem; color: var(--text-muted); }
+  .toggle { width: 44px; height: 24px; background: rgba(255,255,255,0.1); border-radius: 12px; position: relative; cursor: pointer; transition: 0.3s; }
+  .toggle::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:white; border-radius:50%; transition: 0.3s; }
+  .toggle.on { background: var(--green); }
+  .toggle.on::after { transform: translateX(20px); }
+
+  /* SCROLLBARS */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+  ::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-logo">LATERAL<span class="accent">SHIELD</span> <span class="sub">FALCON ENTERPRISE</span></div>
+  <div class="tb-center">
+    <div class="tb-status"><div class="status-dot green"></div><span>MONGO ATLAS: CONNECTED</span></div>
+    <div class="tb-status"><div class="status-dot red"></div><span>ACTIVE ALERTS: <span id="activeThreatCount" style="color:var(--red)">3</span></span></div>
+    <div class="tb-status trapweave-flicker" style="color:var(--cyan)">TRAPWEAVE: OPERATIONAL</div>
+  </div>
+  <div class="tb-right">
+    <div class="tb-time" id="liveTime">--:--:--</div>
+    <button class="tb-btn" onclick="window.location='lateralshield-landing.html'">LOGOUT</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <a href="#/dashboard" class="sb-icon active" data-tooltip="Dashboard">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+  </a>
+  <a href="#/threat-analysis" class="sb-icon" data-tooltip="Threat Explanations">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  </a>
+  <a href="#/network-map" class="sb-icon" data-tooltip="Live Network Map">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+  </a>
+  <a href="#/users" class="sb-icon" data-tooltip="User Activity Feeds">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+  </a>
+  <a href="#/trapweave" class="sb-icon" data-tooltip="TrapWeave Console">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+  </a>
+  <div style="flex:1"></div>
+  <a href="#/about" class="sb-icon" data-tooltip="Architecture & About">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+  </a>
+</div>
+
+<!-- MAIN CONTENT WRAPPER -->
+<div class="main-content">
+
+  <!-- VIEW: DASHBOARD OVERVIEW -->
+  <div id="view-dashboard" class="spa-view active">
+    <div style="display:flex; flex-direction:column; align-items:center; gap:24px; margin-bottom: 24px; width:100%;">
+      
+      <!-- HERO METRIC: ACTIVE INTRUSIONS -->
+      <div id="intrusionCard" class="m-card priority-safe" style="width:100%; max-width:600px; padding:32px; align-items:center; justify-content:center; text-align:center; transition: all 0.3s ease;" data-info="Total multi-stage attack vectors currently breaching containment">
+        <div style="display:flex; align-items:baseline; justify-content:center; gap:16px;">
+           <span class="m-val" id="m-active" style="font-size: 3.6rem; margin-bottom:4px; text-shadow:0 0 20px currentColor;">0</span>
+           <span style="font-family:var(--font-data); font-size:0.85rem; color:var(--green); background:rgba(0,255,136,0.1); padding:4px 8px; border-radius:4px; position:relative; top:-20px;">↓ 100%</span>
+        </div>
+        <span class="m-label" style="font-size: 1rem; color:#fff; letter-spacing:2px; margin-bottom:4px;">ACTIVE INTRUSIONS</span>
+        <div style="font-family:var(--font-ui); font-size:0.65rem; color:rgba(255,255,255,0.4); margin-bottom:16px; text-transform:uppercase;">Real-time Stream</div>
+        <div id="intrusionStatusLabel" style="font-family:var(--font-head); font-size:1.1rem; font-weight:700; letter-spacing:3px;">SYSTEM STATUS: SECURE</div>
+      </div>
+
+      <!-- SECONDARY METRICS: SHRUNK 20% -->
+      <div class="metric-cards" style="width:100%; display:grid; grid-template-columns: repeat(5, 1fr); gap:12px;">
+        
+        <div class="m-card" style="padding:12px; justify-content:space-between;" data-info="Aggregated anomaly probability across all network nodes">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <span class="m-val critical" id="m-score" style="font-size:1.6rem; margin-bottom:4px;">0.83</span>
+            <span style="font-family:var(--font-data); font-size:0.7rem; color:var(--red); background:rgba(255,42,77,0.1); padding:2px 4px; border-radius:2px;">↑ 14%</span>
+          </div>
+          <div>
+            <div class="m-label" style="font-size:0.65rem;">Fused Threat Score</div>
+            <div style="font-family:var(--font-ui); font-size:0.55rem; color:rgba(255,255,255,0.3); margin-top:2px; text-transform:uppercase;">Real-time</div>
+          </div>
+        </div>
+
+        <div class="m-card" style="padding:12px; position:relative; justify-content:space-between; overflow:hidden;" data-info="Model certainty based on isolation forest separation">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; position:relative; z-index:2;">
+            <span class="m-val" id="m-detect" style="font-size:1.6rem; margin-bottom:4px;">97.4%</span>
+            <span style="font-family:var(--font-data); font-size:0.7rem; color:var(--green); background:rgba(0,255,136,0.1); padding:2px 4px; border-radius:2px;">↑ 2.1%</span>
+          </div>
+          <div style="position:relative; z-index:2;">
+            <div class="m-label" style="font-size:0.65rem;">AI Detection Confidence</div>
+            <div style="font-family:var(--font-ui); font-size:0.55rem; color:rgba(255,255,255,0.3); margin-top:2px; text-transform:uppercase;">Last 5 min</div>
+          </div>
+          <!-- Sparkline -->
+          <svg style="position:absolute; bottom:0; left:0; width:100%; height:30px; opacity:0.25; z-index:1;" preserveAspectRatio="none" viewBox="0 0 100 30">
+            <path d="M0,30 L0,20 L20,25 L40,15 L60,22 L80,5 L100,10 L100,30 Z" fill="var(--cyan)"></path>
+            <polyline points="0,20 20,25 40,15 60,22 80,5 100,10" fill="none" stroke="var(--cyan)" stroke-width="2"></polyline>
+          </svg>
+        </div>
+
+        <div class="m-card" style="padding:12px; justify-content:space-between;" data-info="Engine processing delay per stream frame">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <span class="m-val warn" id="m-latency" style="font-size:1.6rem; margin-bottom:4px;">9ms</span>
+            <span style="font-family:var(--font-data); font-size:0.7rem; color:var(--yellow); background:rgba(255,223,0,0.1); padding:2px 4px; border-radius:2px;">↓ 1.2ms</span>
+          </div>
+          <div>
+            <div class="m-label" style="font-size:0.65rem;">Model Inference Latency</div>
+            <div style="font-family:var(--font-ui); font-size:0.55rem; color:rgba(255,255,255,0.3); margin-top:2px; text-transform:uppercase;">Real-time Avg</div>
+          </div>
+        </div>
+
+        <div class="m-card" style="padding:12px; justify-content:space-between;" data-info="Automated decoy traps activated by lateral movement">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <span class="m-val good" id="m-trapped" style="font-size:1.6rem; margin-bottom:4px;">11</span>
+            <span style="font-family:var(--font-data); font-size:0.7rem; color:var(--orange); background:rgba(255,140,0,0.1); padding:2px 4px; border-radius:2px;">↑ 3</span>
+          </div>
+          <div>
+            <div class="m-label" style="font-size:0.65rem;">Honeypots Triggered</div>
+            <div style="font-family:var(--font-ui); font-size:0.55rem; color:rgba(255,255,255,0.3); margin-top:2px; text-transform:uppercase;">Last 24 Hours</div>
+          </div>
+        </div>
+
+        <div class="m-card" style="padding:12px; justify-content:space-between;" data-info="Historical rate of verified non-threats classified incorrectly">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <span class="m-val" id="m-fp" style="font-size:1.6rem; margin-bottom:4px;">0.3%</span>
+            <span style="font-family:var(--font-data); font-size:0.7rem; color:var(--green); background:rgba(0,255,136,0.1); padding:2px 4px; border-radius:2px;">↓ 0.1%</span>
+          </div>
+          <div>
+            <div class="m-label" style="font-size:0.65rem;">False Positive Rate</div>
+            <div style="font-family:var(--font-ui); font-size:0.55rem; color:rgba(255,255,255,0.3); margin-top:2px; text-transform:uppercase;">Last 5 min</div>
+          </div>
+        </div>
+
+      </div>
+      
+    </div>
+
+    <!-- TOP: REAL-TIME ANOMALY DETECTION WAVE + ALERTS -->
+    <div style="display:grid; grid-template-columns: 3fr 1fr; gap:20px; margin-bottom: 24px;">
+      
+      <!-- GRAPH PANEL (75%) -->
+      <div class="panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+          <div class="panel-title">LIVE THREAT DETECTION STREAM</div>
+          <div style="font-family:var(--font-data);font-size:0.7rem;color:var(--cyan)">ANOMALY AMPLITUDE GRAPH</div>
+        </div>
+        <div style="padding: 10px 0 20px 0; height: 320px;">
+          <div style="width:100%; height:100%; position:relative; overflow:hidden; border-radius:8px; border:1px solid rgba(255,255,255,0.05); background:rgba(0,0,0,0.3);">
+            <canvas id="sineWaveCanvas" style="width:100%; height:100%;"></canvas>
+            <div id="chartTooltip" style="position:absolute; top:20px; right:20px; padding:8px 12px; background:rgba(255,0,51,0.2); border:1px solid var(--red); backdrop-filter:blur(4px); color:#fff; font-family:var(--font-ui); font-size:0.75rem; border-radius:4px; pointer-events:none; opacity:0; transition:opacity 0.2s; z-index:10; font-weight:600;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE ALERT STREAM PANEL (25%) -->
+      <div class="panel" style="display:flex; flex-direction:column; padding:20px 16px; margin-bottom:0;">
+        <div class="panel-header" style="margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:8px;">
+          <div class="panel-title" style="font-size:0.75rem;">LIVE ALERT STREAM</div>
+        </div>
+        <div id="liveAlertStrip" style="flex:1; overflow:hidden; display:flex; flex-direction:column; gap:8px; position:relative;">
+           <!-- Alerts dynamically injected here -->
+        </div>
+      </div>
+      
+    </div>
+
+    <!-- BOTTOM ROW: GAUGE & LOGS -->
+    <div class="grid-split" style="grid-template-columns: 1fr 2.5fr;">
+      <!-- GAUGE & CONSENSUS -->
+      <div class="panel" style="display:flex; flex-direction:column; justify-content:center;">
+        <div class="panel-header" style="margin-bottom:8px;"><div class="panel-title">REAL-TIME THREAT ENGINE</div></div>
+        <div class="gauge-wrap" style="padding:10px 0;">
+          <canvas id="gaugeCanvas" width="220" height="130"></canvas>
+          <div class="gauge-val-text" id="gaugeVal">0.83</div>
+          <div style="font-family:var(--font-ui);font-size:0.75rem;color:var(--text-muted);letter-spacing:2px;margin-top:10px;">SYSTEM STATUS: CRITICAL</div>
+        </div>
+      </div>
+
+      <!-- LOG STREAM TERMINAL -->
+      <div class="panel" style="padding:0; background:transparent; border:none; box-shadow:none;">
+        <div class="panel-header" style="background:var(--panel-bg); padding:16px 20px; border-radius:12px 12px 0 0; margin-bottom:0; border:1px solid var(--panel-border); border-bottom:none;"><div class="panel-title">LIVE NETWORK EVENT STREAM</div></div>
+        <div class="terminal-box" id="logStream" style="border-radius:0 0 12px 12px; height: 350px;">
+          <div class="log-line sys"><span class="ll-time">00:00:01</span><span class="ll-ip">SYSTEM</span><span class="ll-msg">LateralShield SSE Streaming Engine Initialized. Listening on port 5000...</span></div>
+          <div class="log-line sys"><span class="ll-time">00:00:02</span><span class="ll-ip">SYSTEM</span><span class="ll-msg">Connecting to MongoDB Atlas Cluster for audit logging... OK.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ═══════════════════════════════════════ -->
+  <!-- VIEW: AI THREAT EXPLAINABILITY          -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="view-threat-analysis" class="spa-view">
+    <div style="display:grid; grid-template-columns: 1fr 380px; gap:20px;">
+      <div>
+        <div class="panel" style="margin-bottom:20px;">
+          <div class="panel-header">
+            <div class="panel-title">SHAP WATERFALL — CONNECTION ATTRIBUTION</div>
+            <div style="font-family:var(--font-data);font-size:0.7rem;color:var(--cyan)">LAST FLAGGED EVENT</div>
+          </div>
+          <div id="shapWaterfallContainer" style="padding:10px 0; display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">RECOMMENDED RESPONSE ACTIONS</div></div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <button class="btn-action" onclick="openDummyModal('Isolate Source IP')" style="padding:14px; font-size:0.8rem; display:flex; align-items:center; gap:10px;">🔒 Isolate Source IP</button>
+            <button class="btn-action" onclick="openDummyModal('Deploy Honeypot Decoy')" style="padding:14px; font-size:0.8rem; display:flex; align-items:center; gap:10px;">🍯 Deploy Honeypot Decoy</button>
+            <button class="btn-action" onclick="openDummyModal('Export MITRE ATT&CK Report')" style="padding:14px; font-size:0.8rem; display:flex; align-items:center; gap:10px; border-color:var(--yellow);">📋 Export MITRE ATT&CK Report</button>
+            <button class="btn-action" onclick="openDummyModal('Mark as Safe (FP Suppress)')" style="padding:14px; font-size:0.8rem; display:flex; align-items:center; gap:10px; border-color:var(--text-muted);">🔕 Mark as Safe (FP Suppress)</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <div class="panel" style="text-align:center;">
+          <div class="panel-header"><div class="panel-title">ANOMALY SCORE</div></div>
+          <div class="gauge-wrap" id="taGaugeWrap" style="padding:10px; border-radius:50%; transition: all 0.3s;">
+            <div style="font-family:var(--font-head); font-size:0.85rem; font-weight:700; color:var(--text-main); margin-bottom: 8px;">THREAT LEVEL</div>
+            <canvas id="taGaugeCanvas" width="200" height="120"></canvas>
+            <div class="gauge-val-text" id="taGaugeVal">0.91</div>
+            <div id="taActionText" style="font-family:var(--font-ui);font-size:0.75rem;color:var(--red);letter-spacing:1px;margin-top:6px;font-weight:700;transition:opacity 0.3s;">Immediate action required</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">EVENT DETAILS</div></div>
+          <div style="font-family:var(--font-data); font-size:0.75rem; line-height:2.2; color:var(--text-muted);">
+            <div>Source IP: <span id="ta-src" style="color:var(--red); float:right;">192.168.1.147</span></div>
+            <div>Dest Asset: <span style="color:var(--cyan); float:right;">DB-Server-02</span></div>
+            <div>Protocol: <span style="color:var(--orange); float:right;">SMB/445</span></div>
+            <div>Technique: <span style="color:var(--yellow); float:right;">T1021.002</span></div>
+            <div>Hop Count: <span style="color:var(--text-main); float:right;">4</span></div>
+            <div>First Seen: <span style="color:var(--text-main); float:right;" id="ta-time">--:--:--</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">MITRE ATT&CK</div></div>
+          <div style="display:flex; flex-direction:column; gap:8px; font-family:var(--font-data); font-size:0.75rem;">
+            <div style="background:rgba(255,42,77,0.1); border:1px solid rgba(255,42,77,0.3); border-radius:6px; padding:8px;">T1021 — Remote Services</div>
+            <div style="background:rgba(255,140,0,0.1); border:1px solid rgba(255,140,0,0.3); border-radius:6px; padding:8px;">T1075 — Pass the Hash</div>
+            <div style="background:rgba(255,223,0,0.1); border:1px solid rgba(255,223,0,0.3); border-radius:6px; padding:8px;">T1110 — Brute Force</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- VIEW: LIVE NETWORK MAP                  -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="view-network-map" class="spa-view">
+    <div class="panel" style="padding:0; overflow:hidden;">
+      <div class="panel-header" style="padding:16px 20px;">
+        <div class="panel-title">TRAPWEAVE LIVE NETWORK MAP</div>
+        <div style="display:flex;gap:20px;align-items:center;font-family:var(--font-data);font-size:0.7rem;">
+          <span style="color:var(--cyan)">● LIVE HOST</span>
+          <span style="color:var(--red)">● THREAT</span>
+          <span style="color:var(--orange)">● AT-RISK</span>
+          <span style="color:#bf55ec">● HONEYPOT</span>
+        </div>
+      </div>
+      <div style="position:relative; height:calc(100vh - 160px);">
+        <canvas id="fullNetMapCanvas" style="width:100%; height:100%;"></canvas>
+        <div style="position:absolute;bottom:16px;left:16px;background:rgba(0,0,0,0.6);border:1px solid var(--panel-border);border-radius:8px;padding:12px 16px;font-family:var(--font-data);font-size:0.75rem;">
+          <div id="nmNodeCount" style="color:var(--cyan);">Hosts: 7 active</div>
+          <div id="nmThreatCount" style="color:var(--red);">Threats: 1 detected</div>
+          <div id="nmHoneypotCount" style="color:#bf55ec;">Honeypots: 2 deployed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- VIEW: USER ACTIVITY FEEDS               -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="view-users" class="spa-view">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">IDENTITY PROFILING MATRIX</div>
+        <div style="font-family:var(--font-data);font-size:0.7rem;color:var(--cyan)"><span id="user-count">0</span> LIVE CONNECTIONS</div>
+      </div>
+      <table style="width:100%; border-collapse:collapse; font-family:var(--font-data); font-size:0.78rem;">
+        <thead>
+          <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.08); text-align:left;">
+            <th style="padding:8px 12px; font-weight:500; letter-spacing:1px;">TIMESTAMP</th>
+            <th style="padding:8px 12px; font-weight:500; letter-spacing:1px;">IDENTITY / HOST</th>
+            <th style="padding:8px 12px; font-weight:500; letter-spacing:1px;">TARGET ASSET</th>
+            <th style="padding:8px 12px; font-weight:500; letter-spacing:1px;">PROTOCOL</th>
+            <th style="padding:8px 12px; font-weight:500; letter-spacing:1px;">AI SCORE</th>
+            <th style="padding:8px 12px; font-weight:500; letter-spacing:1px;">STATUS</th>
+            <th style="padding:8px 12px; font-weight:500; letter-spacing:1px;">INSPECT</th>
+          </tr>
+        </thead>
+        <tbody id="userFeedTableBody">
+          <!-- Rows injected by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- MODAL: USER PROFILE CARD (Dynamic)      -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="userProfileModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); align-items:center; justify-content:center;">
+    <div style="background:var(--bg-base); border:1px solid var(--panel-border); border-radius:12px; width:90%; max-width:900px; padding:24px; box-shadow:0 0 40px rgba(0,0,0,0.8); position:relative;">
+      <!-- Close Button -->
+      <div onclick="closeUserModal()" style="position:absolute; top:20px; right:20px; width:32px; height:32px; border-radius:16px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; color:var(--text-muted); transition:0.2s;" onmouseover="this.style.color='#fff'; this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.color='var(--text-muted)'; this.style.background='rgba(255,255,255,0.05)'">✕</div>
+      
+      <div id="userProfileBanner" style="border-radius:12px; padding:20px 24px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; border:1px solid var(--red); background:rgba(255,42,77,0.1);">
+        <div>
+          <div style="font-family:var(--font-head); font-size:1.4rem; letter-spacing:3px; color:var(--red);">⚠ THREAT STATUS: CRITICAL</div>
+          <div id="upProfileName" style="font-family:var(--font-data); font-size:1rem; color:var(--text-main); margin-top:6px;">Loading profile...</div>
+        </div>
+      </div>
+      
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">24-HR THREAT SCORE TIMELINE</div></div>
+          <canvas id="profileTimeline" height="180"></canvas>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">BEHAVIORAL STATISTICS</div></div>
+          <div style="font-family:var(--font-data); font-size:0.8rem; line-height:2.5;">
+            <div>Total connections (24h): <span id="up-conns" style="float:right; color:var(--cyan);">247</span></div>
+            <div>Anomalous events: <span id="up-anoms" style="float:right; color:var(--red);">17</span></div>
+            <div>Unique target ports: <span id="up-ports" style="float:right; color:var(--orange);">12</span></div>
+            <div>Avg. session duration: <span id="up-dur" style="float:right; color:var(--text-main);">4m 22s</span></div>
+            <div>Peak activity: <span id="up-peak" style="float:right; color:var(--yellow);">02:00–04:00 UTC</span></div>
+            <div>Risk tier: <span id="up-tier" style="float:right; color:var(--red); font-weight:700;">HIGH RISK</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:20px;">
+        <div class="panel-header"><div class="panel-title">RAW ACTIVITY LOG</div></div>
+        <div id="up-rawlog" class="terminal-box" style="height:180px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- MODAL: DUMMY DATA SINE GRAPH            -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="dummyDataModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); align-items:center; justify-content:center;">
+    <div style="background:var(--bg-base); border:1px solid var(--panel-border); border-radius:12px; width:90%; max-width:800px; padding:24px; box-shadow:0 0 40px rgba(0,0,0,0.8); position:relative;">
+      <!-- Close Button -->
+      <div onclick="closeDummyModal()" style="position:absolute; top:20px; right:20px; width:32px; height:32px; border-radius:16px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; color:var(--text-muted); transition:0.2s;" onmouseover="this.style.color='#fff'; this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.color='var(--text-muted)'; this.style.background='rgba(255,255,255,0.05)'">✕</div>
+      
+      <div style="border-radius:12px; padding:20px 24px; margin-bottom:20px; border:1px solid var(--cyan); background:rgba(0,210,255,0.05);">
+        <div style="font-family:var(--font-head); font-size:1.4rem; letter-spacing:3px; color:var(--cyan); text-transform:uppercase;" id="dummyModalTitle">ACTION INITIATED</div>
+        <div style="font-family:var(--font-data); font-size:0.85rem; color:var(--text-muted); margin-top:6px;">Simulated telemetry verification stream active.</div>
+      </div>
+      
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header"><div class="panel-title">LIVE TELEMETRY WAVEFORM (SIN X)</div></div>
+        <div style="width:100%; height:200px; position:relative; overflow:hidden; border-radius:8px; border:1px solid rgba(255,255,255,0.05); background:rgba(0,0,0,0.3);">
+          <canvas id="dummySineCanvas" style="width:100%; height:100%;"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">EXECUTION LOGS</div></div>
+        <div class="terminal-box" style="height:120px;" id="dummyLogStream">
+          <div class="log-line sys"><span class="ll-time">00:00:01</span><span class="ll-ip">SYSTEM</span><span class="ll-msg">Initializing action sequence...</span></div>
+          <div class="log-line sys"><span class="ll-time">00:00:02</span><span class="ll-ip">PROCESS</span><span class="ll-msg">Executing cryptographic headers and routing payload...</span></div>
+          <div class="log-line success"><span class="ll-time">00:00:03</span><span class="ll-ip">SUCCESS</span><span class="ll-msg" style="color:var(--cyan)">Action dispatched successfully to target node.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- VIEW: TRAPWEAVE CONSOLE                  -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="view-trapweave" class="spa-view">
+    <div style="display:grid; grid-template-columns: 1fr 360px; gap:20px;">
+      <div>
+        <div class="panel" style="margin-bottom:20px;">
+          <div class="panel-header">
+            <div class="panel-title">ACTIVE HONEYPOT DEPLOYMENT MAP</div>
+            <div style="font-family:var(--font-data);font-size:0.7rem;color:#bf55ec">3 DECOYS ACTIVE</div>
+          </div>
+          <div id="trapweavePods" style="display:grid; grid-template-columns: repeat(3,1fr); gap:16px; padding-top:8px;"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">ATTACKER ENGAGEMENT LOG</div></div>
+          <div id="trapweaveLog" class="terminal-box" style="height:200px;"></div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">DEPLOY NEW DECOY</div></div>
+          <div style="display:flex; flex-direction:column; gap:14px; font-family:var(--font-data); font-size:0.8rem;">
+            <div>
+              <div style="color:var(--text-muted); margin-bottom:6px;">DECOY TYPE</div>
+              <select style="width:100%; background:rgba(0,0,0,0.4); border:1px solid var(--panel-border); color:var(--text-main); padding:8px; border-radius:6px; font-family:var(--font-data); font-size:0.8rem;">
+                <option>SSH Honeypot (port 22)</option>
+                <option>RDP Honeypot (port 3389)</option>
+                <option>SMB Honeypot (port 445)</option>
+                <option>Fake Admin API</option>
+              </select>
+            </div>
+            <div>
+              <div style="color:var(--text-muted); margin-bottom:6px;">SUBNET SEGMENT</div>
+              <select style="width:100%; background:rgba(0,0,0,0.4); border:1px solid var(--panel-border); color:var(--text-main); padding:8px; border-radius:6px; font-family:var(--font-data); font-size:0.8rem;">
+                <option>192.168.1.0/24 (Corp LAN)</option>
+                <option>192.168.100.0/24 (DMZ)</option>
+                <option>10.0.0.0/8 (Internal)</option>
+              </select>
+            </div>
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" checked style="accent-color:var(--cyan);"> Adaptive TTP Capture</label>
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" checked style="accent-color:var(--cyan);"> Auto-isolate on Engagement</label>
+            <button class="btn-action" onclick="openDummyModal('Launch Decoy')" style="width:100%; padding:14px; font-size:0.85rem;">⚡ LAUNCH DECOY</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">SYSTEM STATUS</div></div>
+          <div style="font-family:var(--font-data); font-size:0.8rem; line-height:2.5;">
+            <div>Decoys Online: <span style="color:var(--green); float:right;">3 / 5</span></div>
+            <div>Total Engagements: <span style="color:var(--orange); float:right;">47</span></div>
+            <div>TTP Records: <span style="color:var(--cyan); float:right;">283</span></div>
+            <div>Isolated IPs: <span style="color:var(--red); float:right;">4</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- VIEW: ARCHITECTURE / ABOUT              -->
+  <!-- ═══════════════════════════════════════ -->
+  <div id="view-about" class="spa-view">
+    <div style="max-width:1000px; margin:0 auto;">
+      <div style="text-align:center; margin-bottom:40px;">
+        <div style="font-family:var(--font-head); font-size:2rem; color:var(--cyan); letter-spacing:6px; margin-bottom:10px;">LATERAL<span style="color:var(--red)">SHIELD</span></div>
+        <div style="font-family:var(--font-data); color:var(--text-muted); font-size:0.85rem; letter-spacing:2px;">AI-POWERED LATERAL MOVEMENT DETECTION + TRAPWEAVE DECEPTION GRID</div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:30px;">
+        <div class="panel" style="text-align:center;">
+          <div style="font-size:2rem; margin-bottom:10px;">🧠</div>
+          <div style="font-family:var(--font-head); font-size:0.85rem; color:var(--cyan); letter-spacing:2px; margin-bottom:10px;">ISOLATION FOREST</div>
+          <div style="font-family:var(--font-ui); font-size:0.8rem; color:var(--text-muted); line-height:1.6;">Unsupervised anomaly detection on 47 behavioral features. Trained on 2M+ network flows. Identifies outliers without labeled data.</div>
+          <div style="margin-top:12px; font-family:var(--font-data); font-size:0.75rem; color:var(--green);">Accuracy: 96.3% F1</div>
+        </div>
+        <div class="panel" style="text-align:center;">
+          <div style="font-size:2rem; margin-bottom:10px;">📊</div>
+          <div style="font-family:var(--font-head); font-size:0.85rem; color:var(--orange); letter-spacing:2px; margin-bottom:10px;">SHAP EXPLAINABILITY</div>
+          <div style="font-family:var(--font-ui); font-size:0.8rem; color:var(--text-muted); line-height:1.6;">Real-time SHAP value computation surfaces which features drove each alert. XGBoost-backed feature importance attribution.</div>
+          <div style="margin-top:12px; font-family:var(--font-data); font-size:0.75rem; color:var(--green);">Latency: &lt;5ms</div>
+        </div>
+        <div class="panel" style="text-align:center;">
+          <div style="font-size:2rem; margin-bottom:10px;">🕸</div>
+          <div style="font-family:var(--font-head); font-size:0.85rem; color:#bf55ec; letter-spacing:2px; margin-bottom:10px;">GRAPH NEURAL NETWORK</div>
+          <div style="font-family:var(--font-ui); font-size:0.8rem; color:var(--text-muted); line-height:1.6;">PyG-based GNN models lateral movement as propagation through the host-entity graph. Detects multi-hop attack patterns.</div>
+          <div style="margin-top:12px; font-family:var(--font-data); font-size:0.75rem; color:var(--green);">Precision: 94.8%</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header"><div class="panel-title">4-PHASE DEVELOPMENT TIMELINE</div></div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:0; position:relative; padding-top:20px;">
+          <div style="height:2px; background:linear-gradient(90deg, var(--green), var(--cyan), var(--orange), var(--red)); position:absolute; top:30px; left:12.5%; width:75%;"></div>
+          <div style="text-align:center; padding:0 10px;">
+            <div style="width:20px; height:20px; border-radius:50%; background:var(--green); margin:0 auto 12px; box-shadow:0 0 12px var(--green);"></div>
+            <div style="font-family:var(--font-head); font-size:0.7rem; color:var(--green); letter-spacing:1px; margin-bottom:6px;">PHASE 1</div>
+            <div style="font-family:var(--font-ui); font-size:0.78rem; color:var(--text-muted);">Data Pipeline, Zeek integration, feature engineering, Redis streams</div>
+          </div>
+          <div style="text-align:center; padding:0 10px;">
+            <div style="width:20px; height:20px; border-radius:50%; background:var(--cyan); margin:0 auto 12px; box-shadow:0 0 12px var(--cyan);"></div>
+            <div style="font-family:var(--font-head); font-size:0.7rem; color:var(--cyan); letter-spacing:1px; margin-bottom:6px;">PHASE 2</div>
+            <div style="font-family:var(--font-ui); font-size:0.78rem; color:var(--text-muted);">ML training: Isolation Forest + XGBoost-SHAP + GNN. Threshold tuning, cross-validation.</div>
+          </div>
+          <div style="text-align:center; padding:0 10px;">
+            <div style="width:20px; height:20px; border-radius:50%; background:var(--orange); margin:0 auto 12px; box-shadow:0 0 12px var(--orange);"></div>
+            <div style="font-family:var(--font-head); font-size:0.7rem; color:var(--orange); letter-spacing:1px; margin-bottom:6px;">PHASE 3</div>
+            <div style="font-family:var(--font-ui); font-size:0.78rem; color:var(--text-muted);">TrapWeave honeypot grid, attacker TTP capture, MITRE ATT&CK auto-tagging.</div>
+          </div>
+          <div style="text-align:center; padding:0 10px;">
+            <div style="width:20px; height:20px; border-radius:50%; background:var(--red); margin:0 auto 12px; box-shadow:0 0 12px var(--red);"></div>
+            <div style="font-family:var(--font-head); font-size:0.7rem; color:var(--red); letter-spacing:1px; margin-bottom:6px;">PHASE 4</div>
+            <div style="font-family:var(--font-ui); font-size:0.78rem; color:var(--text-muted);">SOC Command Center SPA with live SSE telemetry, MongoDB Atlas, and full hash routing.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">TECH STACK</div></div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+          <span style="background:rgba(0,210,255,0.1); border:1px solid rgba(0,210,255,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--cyan);">Python (Flask)</span>
+          <span style="background:rgba(0,210,255,0.1); border:1px solid rgba(0,210,255,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--cyan);">PyTorch + PyG</span>
+          <span style="background:rgba(0,210,255,0.1); border:1px solid rgba(0,210,255,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--cyan);">scikit-learn</span>
+          <span style="background:rgba(0,210,255,0.1); border:1px solid rgba(0,210,255,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--cyan);">SHAP (XGBoost)</span>
+          <span style="background:rgba(191,85,236,0.1); border:1px solid rgba(191,85,236,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:#bf55ec;">MongoDB Atlas</span>
+          <span style="background:rgba(191,85,236,0.1); border:1px solid rgba(191,85,236,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:#bf55ec;">Redis Streams</span>
+          <span style="background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--green);">HTML5 Canvas</span>
+          <span style="background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--green);">Vanilla JS SPA</span>
+          <span style="background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--green);">Server-Sent Events</span>
+          <span style="background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.3); border-radius:20px; padding:6px 14px; font-family:var(--font-data); font-size:0.75rem; color:var(--green);">Zeek IDS</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW: SETTINGS -->
+  <div id="view-settings" class="spa-view">
+    <div class="grid-split">
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">SYSTEM CONFIGURATION</div></div>
+        
+        <div class="setting-row">
+          <div class="setting-info">
+            <h4>Automated TrapWeave Deployment</h4>
+            <p>Automatically spins up dynamic honeypots when an anomaly score exceeds the Strictness Threshold.</p>
+          </div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+        
+        <div class="setting-row">
+          <div class="setting-info">
+            <h4>Strictness Threshold</h4>
+            <p>Minimum ensemble Fused Score required (0.0 - 1.0) to register a Critical alert.</p>
+          </div>
+          <div style="font-family:var(--font-data); font-size:1.1rem; color:var(--cyan); font-weight:700;">0.70</div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <h4>Remote MongoDB Audit Logging</h4>
+            <p>Continuously sync critical security alerts and authenticated sessions to Atlas cluster.</p>
+          </div>
+          <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        </div>
+        
+        <button class="btn-action" onclick="openDummyModal('Save Configuration')" style="margin-top:24px; width:100%; border-color:var(--text-muted); color:var(--text-main)">SAVE CONFIGURATION</button>
+      </div>
+      
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">API HEALTH</div></div>
+        <div style="font-family:var(--font-data); font-size:0.8rem; line-height:2;">
+          <div>Flask Backend: <span style="color:var(--green);float:right">ONLINE</span></div>
+          <div>MongoDB Atlas: <span style="color:var(--green);float:right">CONNECTED</span></div>
+          <div>SSE Event Stream: <span style="color:var(--green);float:right">ACTIVE</span></div>
+          <div>PyTorch Models: <span style="color:var(--cyan);float:right">LOADED</span></div>
+          <div style="margin-top:20px; padding-top:20px; border-top:1px solid rgba(255,255,255,0.05); color:var(--text-muted);">
+            Version: v2.4.0-falcon<br>
+            Latency Check: 12ms<br>
+            Mem Usage: 1.2 GB
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── HASH-BASED SPA ROUTING LOGIC ───
+function handleHashChange() {
+  let hash = window.location.hash || '#/dashboard';
+  if (hash === '#' || hash === '') hash = '#/dashboard';
+  
+  let viewId = hash.replace('#/', '');
+
+  // Visual Nav Active State
+  document.querySelectorAll('.sb-icon').forEach(icon => {
+    icon.classList.remove('active');
+    const href = icon.getAttribute('href');
+    if(href === hash) {
+      icon.classList.add('active');
+    }
+  });
+  
+  // DOM view swapping
+  document.querySelectorAll('.spa-view').forEach(view => view.classList.remove('active'));
+  const targetView = document.getElementById('view-' + viewId);
+  if (targetView) {
+    targetView.classList.add('active');
+  } else {
+    document.getElementById('view-dashboard').classList.add('active');
+  }
+  
+  // Resize to prevent canvas stretching
+  window.dispatchEvent(new Event('resize'));
+}
+
+window.addEventListener('hashchange', handleHashChange);
+window.addEventListener('DOMContentLoaded', handleHashChange);
+
+// ─── BACKEND API CONFIG ───
+const API_BASE = 'http://localhost:5000';
+let backendOnline = false;
+
+// ─── LIVE TIME ───
+function updateTime() { document.getElementById('liveTime').textContent = new Date().toLocaleTimeString('en-US', {hour12:false}) + ' UTC'; }
+setInterval(updateTime, 1000); updateTime();
+
+// ─── BACKEND HEALTH CHECK ───
+async function checkBackend() {
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) { backendOnline = true; return true; }
+  } catch(e) { }
+  return false;
+}
+
+// ─── UTILS ───
+function animateCountUp(el, newValStr) {
+  if (!el || el.textContent === newValStr) return;
+  const numMatch = newValStr.match(/[\d.]+/);
+  if (!numMatch) { el.textContent = newValStr; return; }
+  const endNum = parseFloat(numMatch[0]);
+  const suffix = newValStr.replace(numMatch[0], '');
+  let startNum = parseFloat(el.getAttribute('data-val') || el.textContent.match(/[\d.]+/) || 0);
+  if (isNaN(startNum)) startNum = 0;
+  
+  const isFloat = newValStr.includes('.');
+  const decimals = isFloat ? newValStr.split('.')[1].replace(/[^\d]/g,'').length : 0;
+  const duration = 400; // 0.4s
+  
+  el.setAttribute('data-val', endNum);
+  let startTime = null;
+
+  function update(time) {
+    if (!startTime) startTime = time;
+    const elapsed = time - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+    const currentNum = startNum + (endNum - startNum) * easeOutCubic;
+    
+    el.textContent = (isFloat ? currentNum.toFixed(decimals) : Math.round(currentNum)) + suffix;
+    
+    if (progress < 1) requestAnimationFrame(update);
+    else el.textContent = newValStr;
+  }
+  requestAnimationFrame(update);
+}
+
+// ─── FETCH METRICS ───
+async function loadMetrics() {
+  try {
+    const res = await fetch(`${API_BASE}/api/metrics`, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return;
+    const data = await res.json();
+    const live = data.live_stats || {};
+    const metrics = (data.model_metrics || {}).ensemble || {};
+
+    if (live.critical_alerts !== undefined) {
+      const val = live.critical_alerts;
+      animateCountUp(document.getElementById('m-active'), val.toString());
+      animateCountUp(document.getElementById('activeThreatCount'), val.toString());
+      
+      const heroCard = document.getElementById('intrusionCard');
+      const heroLabel = document.getElementById('intrusionStatusLabel');
+      if (heroCard && heroLabel) {
+        if (val === 0) {
+          heroCard.className = 'm-card priority-safe';
+          heroLabel.textContent = 'SYSTEM STATUS: SECURE';
+        } else {
+          heroCard.className = 'm-card priority-critical';
+          heroLabel.textContent = 'SYSTEM UNDER ATTACK';
+        }
+      }
+    }
+    if (live.today_alerts !== undefined) { animateCountUp(document.getElementById('m-trapped'), live.today_alerts.toString()); }
+    if (metrics.f1 !== undefined) { animateCountUp(document.getElementById('m-detect'), (metrics.f1 * 100).toFixed(1) + '%'); }
+    if (metrics.fpr !== undefined) { animateCountUp(document.getElementById('m-fp'), (metrics.fpr * 100).toFixed(1) + '%'); }
+    if (live.events_per_second !== undefined) { animateCountUp(document.getElementById('m-latency'), (1000 / live.events_per_second).toFixed(1) + 'ms'); }
+  } catch(e) {}
+}
+
+// ─── FETCH ALERTS ───
+async function loadAlerts() {
+  try {
+    const res = await fetch(`${API_BASE}/api/alerts?limit=10`, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return;
+    const data = await res.json();
+    const alerts = data.alerts || [];
+    if (!alerts.length) return;
+
+    const container = document.getElementById('alertsContainer');
+    container.innerHTML = '';
+
+    alerts.forEach(alert => {
+      const sev = alert.severity || 'medium';
+      const ts = alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString('en-US', {hour12:false}) : '--:--:--';
+      const score = alert.scores ? (alert.scores.fused || 0).toFixed(2) : '—';
+      const srcIp = alert.source_ip || '—';
+      const dstIp = alert.dest_ip || '—';
+      
+      let borderCol = sev==='critical' ? 'var(--red)' : sev==='high' ? 'var(--orange)' : 'var(--yellow)';
+      let bgCol = sev==='critical' ? 'rgba(255,42,77,0.05)' : sev==='high' ? 'rgba(255,140,0,0.05)' : 'rgba(255,223,0,0.05)';
+
+      const div = document.createElement('div');
+      div.className = 'alert-box';
+      div.style.cssText = `border-color: ${borderCol}; background: ${bgCol};`;
+      div.innerHTML = `
+        <div class="alert-head">
+          <span class="alert-title">${sev.toUpperCase()} THREAT DETECTED</span>
+          <span class="alert-time">${ts}</span>
+        </div>
+        <div class="alert-ip" style="color:${borderCol}">SRC: ${srcIp} ➔ DST: ${dstIp}</div>
+        <div style="font-family:var(--font-ui); font-size:0.8rem; color:var(--text-muted); margin-top:8px;">Fused Anomaly Score: ${score}. Requesting investigation.</div>
+        <button class="btn-action" style="border-color:${borderCol}; color:${borderCol}" onclick="openDummyModal('Incident Report')">VIEW INCIDENT REPORT</button>
+      `;
+      container.appendChild(div);
+    });
+  } catch(e) {}
+}
+
+// ─── SSE LIVE STREAM ───
+function connectSSE() {
+  if (!backendOnline) return;
+  try {
+    const sseStream = new EventSource(`${API_BASE}/api/stream/events`);
+    sseStream.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+        pushSSELog(event);
+        if (event.score !== undefined) {
+          gaugeTarget = event.score;
+          animateCountUp(document.getElementById('m-score'), event.score.toFixed(2));
+          
+          // Affect Sine Wave
+          if (event.score > 0.70) {
+            isAnomalyActive = true;
+            targetAmplitude = 80 + (event.score * 50); // Huge spike
+          } else {
+            isAnomalyActive = false;
+            targetAmplitude = 10 + (Math.random() * 5); // Calm ripple
+          }
+        }
+      } catch(err) {}
+    };
+  } catch(e) {}
+}
+
+function pushSSELog(event) {
+  const stream = document.getElementById('logStream');
+  const sev = event.severity || 'normal';
+  let cls = 'sys';
+  if (event.type === 'anomaly') { cls = sev === 'critical' ? 'danger' : 'warn'; }
+  
+  const div = document.createElement('div');
+  div.className = `log-line ${cls}`;
+  div.innerHTML = `<span class="ll-time">${new Date().toLocaleTimeString('en-US',{hour12:false})}</span><span class="ll-ip">${event.source_ip || '10.X.X.X'}</span><span class="ll-msg">➔ ${event.dest_ip || '192.X.X.X'} | ${event.type.toUpperCase()}: Score ${(event.score||0).toFixed(3)}</span>`;
+  stream.appendChild(div);
+  if (stream.children.length > 50) stream.removeChild(stream.children[0]);
+  stream.scrollTop = stream.scrollHeight; // auto-scroll
+}
+
+// ─── GAUGE CANVAS ───
+const gc = document.getElementById('gaugeCanvas');
+const gctx = gc.getContext('2d');
+let gaugeScore = 0.83;
+let gaugeTarget = 0.83;
+function drawGauge() {
+  gctx.clearRect(0,0,220,130);
+  const cx=110, cy=110, r=90;
+  const startAngle = Math.PI, endAngle = 2*Math.PI;
+
+  gctx.beginPath(); gctx.arc(cx,cy,r,startAngle,endAngle);
+  gctx.strokeStyle='rgba(255,255,255,0.05)'; gctx.lineWidth=12; gctx.stroke();
+
+  const fillAngle = startAngle + Math.min(1, gaugeScore) * Math.PI;
+  const grad = gctx.createLinearGradient(20,cy,200,cy);
+  grad.addColorStop(0,'#00e676'); grad.addColorStop(0.5,'#ffdf00'); grad.addColorStop(1,'#ff2a4d');
+  gctx.beginPath(); gctx.arc(cx,cy,r,startAngle,fillAngle);
+  gctx.strokeStyle=grad; gctx.lineWidth=12; gctx.lineCap='round'; gctx.stroke();
+
+  // Needle
+  const angle = startAngle + gaugeScore * Math.PI;
+  const nx=cx+Math.cos(angle)*r, ny=cy+Math.sin(angle)*r;
+  gctx.beginPath(); gctx.moveTo(cx,cy); gctx.lineTo(nx,ny);
+  gctx.strokeStyle='#fff'; gctx.lineWidth=3; gctx.lineCap='round'; gctx.stroke();
+  gctx.beginPath(); gctx.arc(cx,cy,6,0,Math.PI*2);
+  gctx.fillStyle='#fff'; gctx.fill();
+
+  gaugeScore += (gaugeTarget - gaugeScore) * 0.08;
+  document.getElementById('gaugeVal').textContent = gaugeScore.toFixed(2);
+  document.getElementById('gaugeVal').style.color = gaugeScore >= 0.7 ? 'var(--red)' : gaugeScore >= 0.4 ? 'var(--yellow)' : 'var(--green)';
+
+  requestAnimationFrame(drawGauge);
+}
+drawGauge();
+setInterval(() => { gaugeTarget = Math.max(0, Math.min(1, gaugeTarget + (Math.random()-0.5)*0.1)); }, 1500);
+
+// ─── INFO: DYNAMIC SINE WAVE (SMOOTH SCROLLING) ───
+const waveCanvas = document.getElementById('sineWaveCanvas');
+const wctx = waveCanvas ? waveCanvas.getContext('2d') : null;
+let targetAmplitude = 10;
+let currentAmplitude = 10;
+let isAnomalyActive = false;
+let waveBuffer = new Array(150).fill(10); // History buffer
+let wavePhase = 0;
+
+function resizeWaveCanvas() {
+  if(!waveCanvas || !waveCanvas.parentElement) return;
+  waveCanvas.width = waveCanvas.parentElement.clientWidth;
+  waveCanvas.height = waveCanvas.parentElement.clientHeight;
+}
+window.addEventListener('resize', resizeWaveCanvas);
+setTimeout(resizeWaveCanvas, 100);
+
+function drawSineWave() {
+  if(!wctx || !waveCanvas) return;
+  wctx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
+  
+  // Graph padding
+  const padL = 45;
+  const padR = 15;
+  const padT = 20;
+  const padB = 25;
+  const gW = waveCanvas.width - padL - padR;
+  const gH = waveCanvas.height - padT - padB;
+  
+  const centerY = padT + gH / 2;
+  const maxAmp = gH / 2;
+  
+  // --- Draw X & Y Axes & Danger Zones ---
+  wctx.lineWidth = 1;
+  wctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  wctx.beginPath();
+  wctx.moveTo(padL, padT); wctx.lineTo(padL, padT + gH);
+  wctx.lineTo(padL + gW, padT + gH);
+  wctx.stroke();
+
+  // Shaded Danger Zone
+  wctx.fillStyle = 'rgba(255,42,77,0.05)';
+  wctx.fillRect(padL, padT, gW, gH * 0.25); // Critical zone
+  wctx.fillStyle = 'rgba(255,223,0,0.02)';
+  wctx.fillRect(padL, padT + gH * 0.25, gW, gH * 0.25); // Warning zone
+
+  // --- Labels & Grids ---
+  wctx.font = '10px "Share Tech Mono", monospace';
+  
+  // Y-Axis Horizontal Lines & Labels
+  wctx.textAlign = 'right';
+  wctx.textBaseline = 'middle';
+  const levels = [
+    { label: '1.0', y: padT, color: 'rgba(255,42,77,0.8)' },
+    { label: '0.5', y: padT + gH * 0.25, color: 'rgba(255,223,0,0.6)' },
+    { label: '0.0', y: centerY, color: 'rgba(0,210,255,0.4)' },
+    { label: '-0.5', y: padT + gH * 0.75, color: 'rgba(255,255,255,0.2)' },
+    { label: '-1.0', y: padT + gH, color: 'rgba(255,255,255,0.2)' }
+  ];
+  
+  levels.forEach(lvl => {
+    // Label
+    wctx.fillStyle = lvl.color;
+    wctx.fillText(lvl.label, padL - 8, lvl.y);
+    // Grid Line
+    wctx.beginPath();
+    wctx.strokeStyle = lvl.y === centerY ? 'rgba(0,210,255,0.15)' : 'rgba(255,255,255,0.04)';
+    if(lvl.y !== centerY && lvl.y !== padT + gH) { wctx.setLineDash([4,4]); }
+    wctx.moveTo(padL, lvl.y); wctx.lineTo(padL + gW, lvl.y);
+    wctx.stroke();
+    wctx.setLineDash([]);
+  });
+
+  // X-Axis Vertical Moving Grid & Labels (Time)
+  wctx.textAlign = 'center';
+  wctx.textBaseline = 'top';
+  wctx.fillStyle = 'rgba(255,255,255,0.4)';
+  
+  const gridSpacing = gW / 5; // 5 time columns
+  const shift = (wavePhase * 40) % gridSpacing;
+  
+  wctx.beginPath();
+  wctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+  wctx.setLineDash([2,4]);
+  
+  let timeTick = 0;
+  for(let x = gW - shift; x > 0; x -= gridSpacing) {
+    wctx.moveTo(padL + x, padT); 
+    wctx.lineTo(padL + x, padT + gH);
+    
+    // Draw tiny tick mark
+    wctx.moveTo(padL + x, padT + gH);
+    wctx.lineTo(padL + x, padT + gH + 4);
+    
+    // Draw time label e.g., -0s, -15s
+    wctx.fillText(`-${timeTick}s`, padL + x, padT + gH + 8);
+    timeTick += 15;
+  }
+  wctx.stroke();
+  wctx.setLineDash([]);
+
+  // --- Mathematics & Data Updating ---
+  currentAmplitude += (targetAmplitude - currentAmplitude) * 0.1;
+  wavePhase += 0.08;
+  const rawNoise = Math.sin(wavePhase * 0.8) * Math.cos(wavePhase * 1.5);
+  
+  // Occasional random anomaly spikes (simulate every 8-15s based on phase)
+  let simulatedSpike = 0;
+  if (Math.random() < 0.005) { // 0.5% chance per frame (~120 frames = 2s... wait, better use a deterministic or controlled interval)
+     if (!window.lastSpikeTime || Date.now() - window.lastSpikeTime > 8000 + Math.random()*7000) {
+        window.lastSpikeTime = Date.now();
+        currentAmplitude = 180 + Math.random() * 50; // Force a massive spike
+     }
+  }
+
+  const scaledAmp = (currentAmplitude / 130) * maxAmp;
+  const nextValue = scaledAmp + (rawNoise * scaledAmp * 0.3) + simulatedSpike;
+  
+  waveBuffer.push(nextValue);
+  waveBuffer.shift();
+  
+  // Color calculation
+  let recentSum = 0;
+  for(let i=waveBuffer.length-10; i<waveBuffer.length; i++) recentSum += waveBuffer[i];
+  const avgAmp = recentSum / 10;
+  const intensity = Math.min(1, avgAmp / (maxAmp * 0.45)); 
+  const r = Math.floor(0 + (255 - 0) * intensity);
+  const g = Math.floor(210 + (42 - 210) * intensity);
+  const b = Math.floor(255 + (77 - 255) * intensity);
+  const strokeColor = `rgba(${r}, ${g}, ${b}, 0.9)`;
+  const fillColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
+
+  // --- Draw the Wave Data ---
+  wctx.save();
+  // Clip to graph area so wave doesn't bleed out of bounds
+  wctx.beginPath();
+  wctx.rect(padL, padT, gW, gH);
+  wctx.clip();
+  
+  wctx.beginPath();
+  wctx.moveTo(padL, padT + gH);
+  
+  const stepX = gW / (waveBuffer.length - 1);
+  const points = waveBuffer.map((val, i) => {
+    // Taper the edges so it fades in/out from zero cleanly
+    const taper = Math.sin((i/waveBuffer.length)*Math.PI);
+    return { x: padL + i * stepX, y: centerY - val * 0.5 * taper };
+  });
+  
+  wctx.lineTo(points[0].x, points[0].y);
+  
+  // Bezier Interpolation
+  for (let i = 0; i < points.length - 1; i++) {
+    const cpX = (points[i].x + points[i+1].x) / 2;
+    wctx.bezierCurveTo(cpX, points[i].y, cpX, points[i+1].y, points[i+1].x, points[i+1].y);
+  }
+  
+  wctx.lineTo(padL + gW, padT + gH);
+  wctx.fillStyle = fillColor;
+  wctx.fill();
+
+  // Top stroke (NO GLOBAL GLOW)
+  wctx.beginPath();
+  wctx.moveTo(points[0].x, points[0].y);
+  for (let i = 0; i < points.length - 1; i++) {
+    const cpX = (points[i].x + points[i+1].x) / 2;
+    wctx.bezierCurveTo(cpX, points[i].y, cpX, points[i+1].y, points[i+1].x, points[i+1].y);
+  }
+  
+  wctx.strokeStyle = strokeColor;
+  wctx.lineWidth = 2.5;
+  wctx.lineJoin = 'round';
+  wctx.stroke();
+  
+  // --- Targeted Anomaly Markers (Glow only on spikes) ---
+  const dangerY = padT + gH * 0.25;
+  
+  // Find local maxima that breach the danger threshold to avoid drawing 50 red dots on one spike
+  let maxima = [];
+  for (let i = 1; i < points.length - 1; i++) {
+    if (points[i].y < dangerY && points[i].y < points[i-1].y && points[i].y < points[i+1].y) {
+       maxima.push(points[i]);
+    }
+  }
+
+  maxima.forEach(pt => {
+    // Glowing Red Dot
+    wctx.beginPath();
+    wctx.arc(pt.x, pt.y, 4, 0, Math.PI*2);
+    wctx.fillStyle = '#ff0033';
+    wctx.shadowColor = 'rgba(255,0,51,0.8)';
+    wctx.shadowBlur = 15;
+    wctx.fill();
+    wctx.shadowBlur = 0; // reset
+    wctx.strokeStyle = '#fff';
+    wctx.lineWidth = 2;
+    wctx.stroke();
+    
+    // Tooltip Banner
+    wctx.fillStyle = 'rgba(255,0,51,0.2)';
+    wctx.fillRect(pt.x - 60, pt.y - 45, 120, 30);
+    wctx.strokeStyle = 'rgba(255,42,77,0.5)';
+    wctx.strokeRect(pt.x - 60, pt.y - 45, 120, 30);
+    
+    wctx.fillStyle = '#fff';
+    wctx.textAlign = 'center';
+    wctx.textBaseline = 'middle';
+    wctx.font = '9px "Share Tech Mono", monospace';
+    wctx.fillText('ANOMALY: ' + (100 - (pt.y/dangerY)*10).toFixed(1) + '%', pt.x, pt.y - 30);
+  });
+
+  wctx.restore(); // Remove clip
+  
+  requestAnimationFrame(drawSineWave);
+}
+drawSineWave();
+
+// ─── LIVE ALERT STREAM GENERATOR ───
+function spawnSimulatedAlert() {
+  const container = document.getElementById('liveAlertStrip');
+  if (!container) return;
+  
+  const types = ['Suspicious Lateral Movement', 'Privilege Escalation Attempt', 'Data Exfiltration Anomaly', 'Honeypot Decoy Triggered', 'RDP Brute Force Detected'];
+  const sevs = ['critical', 'critical', 'high', 'high', 'medium'];
+  const idx = Math.floor(Math.random() * types.length);
+  const type = types[idx];
+  const sev = sevs[idx];
+  const conf = (85 + Math.random() * 14).toFixed(1);
+  const src = `10.44.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+  const dst = `192.168.${Math.floor(Math.random()*2)}.${Math.floor(Math.random()*255)}`;
+  
+  const borderCol = sev==='critical' ? 'var(--red)' : sev==='high' ? 'var(--orange)' : 'var(--yellow)';
+
+  const card = document.createElement('div');
+  card.className = 'mini-alert';
+  card.innerHTML = `
+    <div class="ma-strip" style="background:${borderCol}"></div>
+    <div class="ma-title">${type.toUpperCase()}</div>
+    <div class="ma-meta">
+      <span>SRC: ${src}</span>
+      <span>➔</span>
+      <span>DST: ${dst}</span>
+    </div>
+    <div class="ma-meta" style="margin-top:2px;">
+      <span style="color:var(--text-main)">${new Date().toLocaleTimeString('en-US',{hour12:false})}</span>
+      <span class="ma-conf" style="color:${borderCol}">CONF: ${conf}%</span>
+    </div>
+  `;
+  
+  container.insertBefore(card, container.firstChild);
+  
+  if (container.children.length > 6) {
+    const last = container.lastChild;
+    last.classList.add('fading');
+    setTimeout(() => { if(last.parentElement) last.parentElement.removeChild(last); }, 1000);
+  }
+}
+
+// ─── BOOTSTRAP ───
+(async function init() {
+  const online = await checkBackend();
+  // We can push some simulated logs immediately for effect
+  let int = setInterval(()=>pushSSELog({severity: Math.random()>0.8?'critical':'normal', type: Math.random()>0.8?'anomaly':'traffic', score: Math.random()}), 800);
+  
+  // Tactical Alert Spawner
+  (function alertLoop() {
+    setTimeout(() => {
+      spawnSimulatedAlert();
+      alertLoop();
+    }, 10000 + Math.random() * 10000); 
+  })();
+
+  if (online) {
+    clearInterval(int); // stop demo logs
+    await Promise.all([loadMetrics(), loadAlerts()]);
+    connectSSE();
+    setInterval(() => { loadMetrics(); loadAlerts(); }, 1000);
+  }
+  
+  initAllViews();
+})();
+
+// ─── VIEW INITIALIZERS ───
+function initAllViews() {
+  initShapWaterfall();
+  initUserFeedTable();
+  initTrapweaveView();
+  initNetworkMapCanvas();
+  initThreatAnalysisGauge();
+}
+
+// ─── THREAT ANALYSIS: SHAP WATERFALL ───
+const shapWaterfallFeats = [
+  {name: 'auth_velocity', val: 0.34, desc: 'High abnormal login speed detected'},
+  {name: 'hop_count',     val: 0.21, desc: 'Atypical routing path across subnets'},
+  {name: 'port_diversity',val: 0.17, desc: 'Scanning behavior on multiple closed ports'},
+  {name: 'data_volume',   val:-0.12, desc: 'Data transfer within expected baseline'},
+  {name: 'time_of_day',   val: 0.08, desc: 'Access occurring outside normal business hours'},
+  {name: 'known_service', val:-0.06, desc: 'Standard approved protocol signature'}
+];
+
+function initShapWaterfall() {
+  const cont = document.getElementById('shapWaterfallContainer');
+  if (!cont) return;
+  cont.innerHTML = '';
+  
+  // Sort descending by absolute impact
+  const sortedFeats = [...shapWaterfallFeats].sort((a,b) => Math.abs(b.val) - Math.abs(a.val));
+  const max = Math.max(...sortedFeats.map(f=>Math.abs(f.val)));
+  
+  // Add subtitle/label
+  cont.innerHTML = `<div style="font-family:var(--font-ui); font-size:0.75rem; color:var(--text-muted); margin-bottom:12px; letter-spacing:1px; text-transform:uppercase;">Top contributing factors to anomaly</div>`;
+  
+  sortedFeats.forEach(f => {
+    // Colors based on impact semantics
+    let color = '';
+    const absVal = Math.abs(f.val);
+    if (f.val >= 0) {
+       color = absVal > 0.2 ? '#ff2a4d' : (absVal > 0.1 ? '#ffdf00' : '#ff8c00'); // Red for high threat, yellow for moderate
+    } else {
+       color = '#00e676'; // Green for safe
+    }
+
+    const pct = Math.round(absVal / max * 100);
+    const positive = f.val >= 0;
+    
+    // Inject the tooltip as a native title
+    cont.innerHTML += `
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:8px;" title="${f.name}: ${f.desc}">
+        <span style="width:140px; text-align:right; font-family:var(--font-data); font-size:0.8rem; color:var(--text-muted); cursor:help;">${f.name}</span>
+        <div style="flex:1; height:28px; background:rgba(255,255,255,0.04); border-radius:4px; position:relative; overflow:hidden;">
+          <div style="position:absolute; ${positive?'left:50%':'right:50%'}; top:0; bottom:0; width:${pct/2}%; background:${color}; border-radius:4px; opacity:0.9; box-shadow:0 0 12px ${color}44; transition:width 1s ease;"></div>
+          <!-- baseline 0 marker -->
+          <div style="position:absolute; left:50%; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.4); z-index:2;"></div>
+        </div>
+        <span style="width:60px; font-family:var(--font-data); font-size:0.85rem; font-weight:700; color:${color};">${positive?'+':''}${f.val.toFixed(3)}</span>
+      </div>`;
+  });
+  document.getElementById('ta-time').textContent = new Date().toLocaleTimeString('en-US', {hour12:false});
+}
+
+// ─── THREAT ANALYSIS: GAUGE ───
+const taGc = document.getElementById('taGaugeCanvas');
+const taGctx = taGc ? taGc.getContext('2d') : null;
+let taScore = 0.91;
+let taScoreTarget = 0.91;
+
+function drawTAGauge() {
+  if (!taGctx) return;
+  taGctx.clearRect(0, 0, 200, 120);
+  const cx=100, cy=110, r=80;
+  
+  taGctx.beginPath(); taGctx.arc(cx,cy,r,Math.PI,2*Math.PI);
+  taGctx.strokeStyle='rgba(255,255,255,0.05)'; taGctx.lineWidth=10; taGctx.stroke();
+  
+  const fillAngle = Math.PI + Math.min(1, taScore)*Math.PI;
+  const g = taGctx.createLinearGradient(20,cy,180,cy);
+  g.addColorStop(0,'#00e676'); g.addColorStop(0.5,'#ffdf00'); g.addColorStop(1,'#ff2a4d');
+  
+  taGctx.beginPath(); taGctx.arc(cx,cy,r,Math.PI,fillAngle);
+  taGctx.strokeStyle=g; taGctx.lineWidth=10; taGctx.lineCap='round'; 
+  if (taScore >= 0.8) {
+     taGctx.shadowColor = 'rgba(255,42,77,0.8)';
+     taGctx.shadowBlur = 15;
+  }
+  taGctx.stroke();
+  taGctx.shadowBlur = 0; // reset
+  
+  const a=Math.PI+taScore*Math.PI, nx=cx+Math.cos(a)*r, ny=cy+Math.sin(a)*r;
+  taGctx.beginPath(); taGctx.moveTo(cx,cy); taGctx.lineTo(nx,ny);
+  taGctx.strokeStyle='#fff'; taGctx.lineWidth=2; taGctx.lineCap='round'; taGctx.stroke();
+  
+  taGctx.beginPath(); taGctx.arc(cx,cy,5,0,Math.PI*2);
+  taGctx.fillStyle='#fff'; taGctx.fill();
+
+  const valEl = document.getElementById('taGaugeVal');
+  if(valEl) valEl.textContent = taScore.toFixed(2);
+  
+  const wrap = document.getElementById('taGaugeWrap');
+  const actionText = document.getElementById('taActionText');
+  if (wrap && actionText) {
+      if (taScore >= 0.9) {
+         wrap.classList.add('gauge-critical-state');
+         actionText.classList.add('text-blink');
+         actionText.style.opacity = 1;
+      } else {
+         wrap.classList.remove('gauge-critical-state');
+         actionText.classList.remove('text-blink');
+         actionText.style.opacity = 0.3; 
+      }
+  }
+
+  taScore += (taScoreTarget - taScore) * 0.08;
+  requestAnimationFrame(drawTAGauge);
+}
+
+function initThreatAnalysisGauge() {
+  drawTAGauge();
+  setInterval(() => {
+    taScoreTarget = Math.max(0.6, Math.min(1, taScoreTarget + (Math.random()-0.45)*0.1));
+  }, 1000);
+}
+
+// ─── USER FEED TABLE ───
+const userProfiles = [
+  {id:'u001', host:'DESKTOP-04', ip:'192.168.1.104', target:'DB-Server-02', protocol:'SMB/445', score:0.94, status:'threat'},
+  {id:'u002', host:'LAPTOP-07',  ip:'192.168.1.107', target:'FileServer-01', protocol:'HTTP/80', score:0.31, status:'safe'},
+  {id:'u003', host:'WORKST-12',  ip:'192.168.1.112', target:'Gateway', protocol:'ICMP', score:0.55, status:'monitoring'},
+  {id:'u004', host:'ADMIN-01',   ip:'192.168.1.10',  target:'AdminServer_Fake01', protocol:'RDP/3389', score:0.89, status:'threat'},
+  {id:'u005', host:'DEV-SERVER', ip:'192.168.1.202', target:'Analytics-DB', protocol:'TCP/5432', score:0.22, status:'safe'},
+];
+function initUserFeedTable() {
+  const tbody = document.getElementById('userFeedTableBody');
+  if(!tbody) return;
+  const countEl = document.getElementById('user-count');
+  if(countEl) countEl.textContent = userProfiles.length;
+  
+  tbody.innerHTML = '';
+  userProfiles.forEach(u => {
+    const sc = u.score;
+    const scoreColor = sc>=0.75?'var(--red)': sc>=0.45?'var(--yellow)':'var(--green)';
+    const badgeStyle = u.status==='threat'    ? 'background:rgba(255,42,77,0.2);border:1px solid var(--red);color:var(--red);'
+                     : u.status==='monitoring' ? 'background:rgba(255,223,0,0.2);border:1px solid var(--yellow);color:var(--yellow);'
+                     :                           'background:rgba(0,230,118,0.2);border:1px solid var(--green);color:var(--green);';
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.2s;';
+    tr.onmouseenter = ()=> tr.style.background='rgba(0,210,255,0.04)';
+    tr.onmouseleave = ()=> tr.style.background='';
+    tr.innerHTML = `
+      <td style="padding:12px;">${new Date().toLocaleTimeString('en-US',{hour12:false})}</td>
+      <td style="padding:12px;"><span style="color:var(--cyan);">${u.host}</span><br><span style="color:var(--text-muted); font-size:0.7rem;">${u.ip}</span></td>
+      <td style="padding:12px; color:var(--text-muted);">${u.target}</td>
+      <td style="padding:12px; color:var(--orange);">${u.protocol}</td>
+      <td style="padding:12px; color:${scoreColor}; font-weight:700;">${sc.toFixed(2)}</td>
+      <td style="padding:12px;"><span style="padding:4px 10px; border-radius:20px; font-size:0.7rem; letter-spacing:1px; ${badgeStyle}">${u.status.toUpperCase()}</span></td>
+      <td style="padding:12px;"><a href="#" onclick="openUserModal('${u.id}'); return false;" style="color:var(--cyan); text-decoration:none; font-size:0.75rem;">INSPECT →</a></td>`;
+    tbody.appendChild(tr);
+  });
+  
+  // Refresh table every 5s with slightly randomised scores
+  setInterval(() => {
+    document.querySelectorAll('#userFeedTableBody tr').forEach((row, i) => {
+      userProfiles[i].score = Math.max(0.05, Math.min(0.99, userProfiles[i].score + (Math.random()-0.5)*0.05));
+    });
+    initUserFeedTable();
+  }, 5000);
+}
+
+// ─── USER PROFILE MODAL ───
+window.openUserModal = function(userId) {
+  const modal = document.getElementById('userProfileModal');
+  if (modal) modal.style.display = 'flex';
+  window.loadUserProfile(userId);
+};
+
+window.closeUserModal = function() {
+  const modal = document.getElementById('userProfileModal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.loadUserProfile = function(userId) {
+  const user = userProfiles.find(u => u.id === userId) || userProfiles[0];
+  const banner = document.getElementById('userProfileBanner');
+  const nameEl = document.getElementById('upProfileName');
+  if (nameEl) nameEl.textContent = `Host: ${user.host} | IP: ${user.ip}`;
+  if (banner) {
+    if (user.status === 'threat') {
+      banner.style.borderColor = 'var(--red)'; banner.style.background = 'rgba(255,42,77,0.1)';
+      banner.querySelector('div > div').textContent = '⚠ THREAT STATUS: CRITICAL';
+    } else if (user.status === 'monitoring') {
+      banner.style.borderColor = 'var(--yellow)'; banner.style.background = 'rgba(255,223,0,0.1)';
+      banner.querySelector('div > div').textContent = 'MONITORING STATUS: SUSPICIOUS';
+    } else {
+      banner.style.borderColor = 'var(--green)'; banner.style.background = 'rgba(0,230,118,0.1)';
+      banner.querySelector('div > div').textContent = '✓ THREAT STATUS: SAFE';
+    }
+  }
+  
+  // 24hr timeline canvas
+  const ptc = document.getElementById('profileTimeline');
+  if (ptc) {
+    ptc.width = ptc.parentElement.clientWidth - 40;
+    const px = ptc.getContext('2d');
+    const points = Array.from({length:24}, () => Math.random() * user.score * 1.1);
+    px.clearRect(0,0,ptc.width,ptc.height);
+    px.strokeStyle='rgba(255,255,255,0.03)'; px.lineWidth=1;
+    for(let g=0;g<5;g++){const gy=ptc.height/5*g; px.beginPath();px.moveTo(0,gy);px.lineTo(ptc.width,gy);px.stroke();}
+    const stepX = ptc.width/(points.length-1);
+    px.beginPath();
+    points.forEach((v,i)=>{
+      const x=i*stepX, y=ptc.height-(v/1*ptc.height*0.9);
+      i===0?px.moveTo(x,y):(()=>{const px0=(i-1)*stepX, py0=ptc.height-(points[i-1]/1*ptc.height*0.9), cp=(px0+x)/2; px.bezierCurveTo(cp,py0,cp,y,x,y);})();
+    });
+    px.strokeStyle = user.status==='threat'?'#ff2a4d': user.status==='monitoring'?'#ffdf00':'#00e676';
+    px.lineWidth=2.5; px.stroke();
+    
+    // Fill under line
+    px.lineTo(ptc.width,ptc.height); px.lineTo(0,ptc.height); px.closePath();
+    const grad = px.createLinearGradient(0,0,0,ptc.height);
+    const col = user.status==='threat'?'255,42,77': user.status==='monitoring'?'255,223,0':'0,230,118';
+    grad.addColorStop(0,`rgba(${col},0.3)`); grad.addColorStop(1,`rgba(${col},0)`);
+    px.fillStyle=grad; px.fill();
+  }
+  
+  // Raw log
+  const rawLog = document.getElementById('up-rawlog');
+  if (rawLog) {
+    rawLog.innerHTML = '';
+    for(let i=0;i<12;i++){
+      const age=Math.floor(Math.random()*60), sc=(Math.random()*user.score+0.05).toFixed(2);
+      rawLog.innerHTML+=`<div class="log-line ${user.status==='threat'?'danger':'sys'}" style="padding:6px 10px;"><span class="ll-time">${new Date(Date.now()-age*60000).toLocaleTimeString('en-US',{hour12:false})}</span><span class="ll-ip">${user.ip}</span><span class="ll-msg"> → ${user.target} | Score: ${sc}</span></div>`;
+    }
+  }
+};
+
+// ─── TRAPWEAVE CONSOLE ───
+const honeypotDefs = [
+  {name:'AdminServer_Fake01', ip:'192.168.100.45', type:'RDP/3389', hits:23, active:true},
+  {name:'SysDB_Honeypot',      ip:'192.168.100.22', type:'SMB/445',  hits:11, active:true},
+  {name:'BizApp_Decoy02',      ip:'192.168.1.200',  type:'SSH/22',   hits: 4, active:false},
+];
+function initTrapweaveView() {
+  const pods = document.getElementById('trapweavePods');
+  if (!pods) return;
+  pods.innerHTML = '';
+  honeypotDefs.forEach(hp => {
+    const col = hp.active ? '#bf55ec' : 'var(--text-muted)';
+    pods.innerHTML += `
+      <div class="panel" style="border-color:${col}44; text-align:center; padding:20px 16px;">
+        <div style="font-size:1.5rem; margin-bottom:8px;">${hp.active?'🍯':'⬜'}</div>
+        <div style="font-family:var(--font-data); font-size:0.7rem; color:${col}; letter-spacing:1px; margin-bottom:6px;">${hp.name}</div>
+        <div style="font-family:var(--font-data); font-size:0.65rem; color:var(--text-muted);">${hp.ip}<br>${hp.type}</div>
+        <div style="margin-top:12px; font-family:var(--font-data); font-size:1.2rem; font-weight:800; color:${col};">${hp.hits}</div>
+        <div style="font-size:0.65rem; color:var(--text-muted); letter-spacing:1px;">ENGAGEMENTS</div>
+        <div style="margin-top:8px; padding:4px 8px; border-radius:4px; display:inline-block; font-size:0.65rem; background:${hp.active?'rgba(191,85,236,0.2)':'rgba(255,255,255,0.05)'}; color:${col};">${hp.active?'ACTIVE':'OFFLINE'}</div>
+      </div>`;
+  });
+  
+  // Engagement log
+  const log = document.getElementById('trapweaveLog');
+  if (log) {
+    log.innerHTML = '';
+    honeypotDefs.filter(hp=>hp.active).forEach(hp=>{
+      for(let i=0;i<5;i++){
+        const ip=`192.168.1.${Math.floor(Math.random()*200+50)}`;
+        log.innerHTML+=`<div class="log-line warn" style="padding:6px 10px;"><span class="ll-time">${new Date(Date.now()-i*90000).toLocaleTimeString('en-US',{hour12:false})}</span><span class="ll-ip">${ip}</span><span class="ll-msg"> → HIT ${hp.name} on ${hp.type}</span></div>`;
+      }
+    });
+  }
+}
+
+// ─── FULL-SCREEN 3D NETWORK MAP (THREE.JS) ───
+function initNetworkMapCanvas() {
+  const container = document.getElementById('fullNetMapCanvas').parentElement;
+  if (!container) return;
+  
+  // Clean up old canvas
+  container.innerHTML = '';
+  
+  // Setup Tooltip
+  const tooltip = document.createElement('div');
+  tooltip.style.position = 'absolute';
+  tooltip.style.background = 'rgba(0,0,0,0.85)';
+  tooltip.style.border = '1px solid var(--cyan)';
+  tooltip.style.padding = '10px 14px';
+  tooltip.style.borderRadius = '6px';
+  tooltip.style.color = '#fff';
+  tooltip.style.fontFamily = 'var(--font-data)';
+  tooltip.style.fontSize = '0.75rem';
+  tooltip.style.pointerEvents = 'none';
+  tooltip.style.opacity = '0';
+  tooltip.style.transition = 'opacity 0.2s';
+  tooltip.style.zIndex = '1000';
+  tooltip.style.boxShadow = '0 0 15px rgba(0,210,255,0.2)';
+  container.appendChild(tooltip);
+
+  // Stats UI preservation
+  const statsUI = document.createElement('div');
+  statsUI.style.position = 'absolute';
+  statsUI.style.bottom = '16px'; statsUI.style.left = '16px';
+  statsUI.style.background = 'rgba(0,0,0,0.6)';
+  statsUI.style.border = '1px solid var(--panel-border)';
+  statsUI.style.borderRadius = '8px'; statsUI.style.padding = '12px 16px';
+  statsUI.style.fontFamily = 'var(--font-data)'; statsUI.style.fontSize = '0.75rem';
+  statsUI.style.zIndex = '10';
+  statsUI.innerHTML = `<div style="color:var(--cyan);">Hosts: 7 active</div><div style="color:var(--red);">Threats: 1 detected</div><div style="color:#bf55ec;">Honeypots: 2 deployed</div>`;
+  container.appendChild(statsUI);
+
+  // Scene setup
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x030712, 0.0015);
+  
+  const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.position.set(0, 150, 400);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.maxDistance = 800;
+  controls.minDistance = 50;
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+  scene.add(ambientLight);
+  const pointLight = new THREE.PointLight(0x00d2ff, 1.5, 600);
+  pointLight.position.set(0, 200, 0);
+  scene.add(pointLight);
+
+  // Node Data (3D coordinates)
+  const nmNodes = [
+    {id:'attacker', x:-150, y:80, z:-100, type:'threat',    label:'ATTACKER', ip:'192.168.1.147', r:12},
+    {id:'desktop04',x:-50,  y:20, z:50,   type:'compromised',label:'DESKTOP-04', ip:'192.168.1.104', r:10},
+    {id:'laptop07', x:-80,  y:-40, z:120, type:'normal',     label:'LAPTOP-07',  ip:'192.168.1.107', r:8},
+    {id:'dbserver', x:60,   y:50, z:-20,  type:'at_risk',    label:'DB-Server',  ip:'192.168.1.20',  r:10},
+    {id:'adminfake',x:120,  y:10, z:-80,  type:'honeypot',   label:'FAKE-ADMIN', ip:'192.168.100.45',r:10},
+    {id:'gateway',  x:180,  y:0,  z:80,   type:'normal',     label:'GATEWAY',    ip:'192.168.1.1',   r:8},
+    {id:'fileserver',x:40,  y:-60, z:90,  type:'normal',     label:'FileServer', ip:'192.168.1.30',  r:8},
+  ];
+  
+  const nmEdges = [
+    {from:'attacker', to:'desktop04', threat:true},
+    {from:'desktop04',to:'adminfake', threat:true},
+    {from:'desktop04',to:'dbserver',  threat:false},
+    {from:'laptop07', to:'gateway',   threat:false},
+    {from:'laptop07', to:'fileserver',threat:false},
+    {from:'dbserver', to:'gateway',   threat:false},
+  ];
+  
+  const nmPalette = {threat:0xff2a4d, compromised:0xff8c00, at_risk:0xffdf00, normal:0x00d2ff, honeypot:0xbf55ec};
+
+  const nodeMeshes = [];
+  const edgeMaterials = [];
+
+  // Build Nodes
+  nmNodes.forEach(n => {
+    const geo = new THREE.SphereGeometry(n.r, 32, 32);
+    const mat = new THREE.MeshPhongMaterial({ 
+      color: nmPalette[n.type], 
+      emissive: nmPalette[n.type],
+      emissiveIntensity: n.type === 'threat' ? 0.8 : 0.4,
+      transparent: true,
+      opacity: 0.9
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(n.x, n.y, n.z);
+    mesh.userData = { label: n.label, ip: n.ip, type: n.type, color: nmPalette[n.type] };
+    scene.add(mesh);
+    nodeMeshes.push(mesh);
+    
+    // Outer glow aura
+    const auraGeo = new THREE.SphereGeometry(n.r * 1.5, 32, 32);
+    const auraMat = new THREE.MeshBasicMaterial({
+      color: nmPalette[n.type],
+      transparent: true,
+      opacity: 0.15,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide
+    });
+    const aura = new THREE.Mesh(auraGeo, auraMat);
+    mesh.add(aura);
+  });
+
+  // Build Edges
+  nmEdges.forEach(e => {
+    const from = nmNodes.find(n=>n.id===e.from);
+    const to = nmNodes.find(n=>n.id===e.to);
+    
+    const points = [];
+    points.push(new THREE.Vector3(from.x, from.y, from.z));
+    points.push(new THREE.Vector3(to.x, to.y, to.z));
+    
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({
+      color: e.threat ? 0xff2a4d : 0x00d2ff,
+      transparent: true,
+      opacity: e.threat ? 0.8 : 0.3,
+      linewidth: e.threat ? 2 : 1
+    });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    if(e.threat) edgeMaterials.push(mat);
+  });
+
+  // Raycaster for interactions
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  let hoveredNode = null;
+
+  container.addEventListener('mousemove', (event) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+    
+    tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
+    tooltip.style.top = (event.clientY - rect.top + 15) + 'px';
+  });
+
+  // Resize handler
+  window.addEventListener('resize', () => {
+    if(!container) return;
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+
+  // Animation Loop
+  let clock = new THREE.Clock();
+  
+  function animate() {
+    requestAnimationFrame(animate);
+    
+    const time = clock.getElapsedTime();
+    
+    // Pulse malicious edges
+    edgeMaterials.forEach(mat => {
+      mat.opacity = 0.4 + 0.4 * Math.sin(time * 4);
+    });
+    
+    // Slowly rotate the entire scene for dynamic effect
+    scene.rotation.y = time * 0.05;
+
+    // Raycasting logic
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(nodeMeshes);
+
+    if (intersects.length > 0) {
+      if (hoveredNode !== intersects[0].object) {
+        if (hoveredNode) hoveredNode.scale.set(1, 1, 1);
+        hoveredNode = intersects[0].object;
+        hoveredNode.scale.set(1.4, 1.4, 1.4);
+        
+        const data = hoveredNode.userData;
+        const colHex = '#' + data.color.toString(16).padStart(6, '0');
+        tooltip.innerHTML = `<span style="color:${colHex}; font-weight:800; display:block; margin-bottom:4px;">${data.label}</span>IP: ${data.ip}<br>Type: ${data.type.toUpperCase()}`;
+        tooltip.style.opacity = '1';
+        container.style.cursor = 'pointer';
+      }
+    } else {
+      if (hoveredNode) {
+        hoveredNode.scale.set(1, 1, 1);
+        hoveredNode = null;
+        tooltip.style.opacity = '0';
+        container.style.cursor = 'default';
+      }
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  
+  animate();
+}
+
+</script>
+</body>
+</html>

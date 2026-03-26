@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ML models (large binary files)
+backend/models/saved/*.pkl
+backend/models/saved/*.joblib
+# Keep JSON stats
+!backend/models/saved/*.json
+
+# Dataset files (download separately)
+data/raw/
+data/processed/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Environment
+.env
+*.env.local
+
+# Docker volumes
+mongo_data/
+
+# Logs
+*.log
+/tmp/trapweave_ttp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
