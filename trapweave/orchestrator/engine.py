@@ -13,6 +13,7 @@ import socket
 import threading
 import subprocess
 import requests
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -225,18 +226,18 @@ class HoneypotDeployer:
         return honeypot_info
 
     def _docker_run(self, name: str, template: dict, ip: str, port: int) -> Optional[str]:
-        """Start a Docker container for the honeypot."""
+        """Start a Docker container for the honeypot. Uses list args — no shell=True."""
         try:
-            port_mappings = " ".join(f"-p {p}:{p}" for p in template["ports"])
-            cmd = (
-                f"docker run -d --name {name} "
-                f"--network {TRAPWEAVE_CONFIG['honeypot_network']} "
-                f"{port_mappings} "
-                f"--label trapweave=true "
-                f"--label hp_ip={ip} "
-                f"{template['docker_image']}"
-            )
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            # Build args as a list to prevent shell injection
+            cmd = ["docker", "run", "-d", "--name", name,
+                   "--network", TRAPWEAVE_CONFIG["honeypot_network"],
+                   "--label", "trapweave=true",
+                   "--label", f"hp_ip={ip}"]
+            for p in template["ports"]:
+                cmd += ["-p", f"{p}:{p}"]
+            cmd.append(template["docker_image"])
+
+            result = subprocess.run(cmd, shell=False, capture_output=True, text=True, timeout=30)
             if result.returncode == 0:
                 return result.stdout.strip()[:12]
             else:
@@ -353,7 +354,8 @@ class TrapWeaveEngine:
         self.graph = NetworkGraph()
         self.deployer = HoneypotDeployer()
         self.running = False
-        self.processed_events = set()
+        # Bounded deque prevents unbounded memory growth in long-running deployments
+        self.processed_events = deque(maxlen=10_000)
         self.graph.load_default_topology()
 
     def handle_alert(self, alert: dict):
@@ -361,7 +363,7 @@ class TrapWeaveEngine:
         event_id = alert.get("event_id", "")
         if event_id in self.processed_events:
             return
-        self.processed_events.add(event_id)
+        self.processed_events.append(event_id)
 
         fused_score = alert.get("scores", {}).get("fused", 0)
         if fused_score < TRAPWEAVE_CONFIG["trigger_threshold"]:

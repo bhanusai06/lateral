@@ -1,0 +1,7 @@
+{
+  "n_samples": 50000,
+  "n_features": 26,
+  "if_n_estimators": 200,
+  "lof_n_neighbors": 20,
+  "ocsvm_nu": 0.05
+}

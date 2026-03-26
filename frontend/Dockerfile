@@ -1,4 +1,3 @@
-# Use a lightweight NGINX alpine container to serve the static frontend assets
 FROM nginx:alpine
 
 # Clear the default NGINX contents
