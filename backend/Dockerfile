@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy and install Python dependencies
 COPY backend/requirements.txt ./backend/
-RUN sed -i 's/\r$//' ./backend/requirements.txt && \
-    pip install --no-cache-dir -r backend/requirements.txt
+RUN tr -d '\r' < ./backend/requirements.txt > ./backend/reqs_clean.txt && \
+    pip install --no-cache-dir -r ./backend/reqs_clean.txt
 
 # Copy application code
 COPY backend /app/backend
