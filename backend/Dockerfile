@@ -8,12 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt ./backend/
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Copy application code
-COPY . /app/backend
-COPY ../data /app/data
+COPY backend /app/backend
+COPY data /app/data
 
 # Create directories
 RUN mkdir -p /app/backend/models/saved /app/data/processed /app/data/raw

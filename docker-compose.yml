@@ -26,8 +26,8 @@ services:
   # ── Flask Backend ──────────────────────────────────────────
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: lateralshield_backend
     restart: unless-stopped
     environment:
@@ -136,8 +136,8 @@ services:
   # ── Model Training (one-shot) ──────────────────────────────
   trainer:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: lateralshield_trainer
     restart: "no"
     command: python -m backend.models.train
